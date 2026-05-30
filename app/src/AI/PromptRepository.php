@@ -38,17 +38,17 @@ final class PromptRepository
         }
 
         if ($assistente !== '') {
-            $conditions[] = 'TRIM(p.assistente) = TRIM(:assistente)';
+            $conditions[] = 'p.assistente = :assistente';
             $params[':assistente'] = $assistente;
         }
 
         if ($funcao !== '') {
-            $conditions[] = 'TRIM(p.funcao) = TRIM(:funcao)';
+            $conditions[] = 'p.funcao = :funcao';
             $params[':funcao'] = $funcao;
         }
 
         if ($section !== '') {
-            $conditions[] = 'TRIM(COALESCE(f.section_code, "")) = TRIM(:section)';
+            $conditions[] = 'f.section_code = :section';
             $params[':section'] = $section;
         }
 
@@ -75,7 +75,7 @@ final class PromptRepository
                 END AS has_sql
             FROM prompts p
             LEFT JOIN form_fields f
-                ON TRIM(f.prompt_code) = TRIM(p.assistente)
+                ON f.prompt_code = p.assistente
             WHERE ' . implode(' AND ', $conditions) . '
             ORDER BY
                 (f.sort_order IS NULL) ASC,
@@ -115,8 +115,8 @@ final class PromptRepository
                 END AS has_sql
             FROM prompts p
             LEFT JOIN form_fields f
-                ON TRIM(f.prompt_code) = TRIM(p.assistente)
-            WHERE TRIM(p.assistente) = TRIM(:assistente)
+                ON f.prompt_code = p.assistente
+            WHERE p.assistente = :assistente
             ORDER BY
                 (f.sort_order IS NULL) ASC,
                 f.sort_order ASC,
@@ -304,7 +304,7 @@ final class PromptRepository
                 COALESCE(required, 0) AS required,
                 COALESCE(type, "") AS type
             FROM form_fields
-            WHERE TRIM(prompt_code) = TRIM(:assistente)
+            WHERE prompt_code = :assistente
             ORDER BY
                 (sort_order IS NULL) ASC,
                 sort_order ASC,

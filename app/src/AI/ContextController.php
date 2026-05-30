@@ -171,7 +171,7 @@ final class ContextController
         $sessionMinute = $responseDateTime !== '' ? substr($responseDateTime, 0, 16) : '';
 
         $params = [];
-        $where = ['`prompt_response` IS NOT NULL', 'TRIM(`prompt_response`) <> ""'];
+        $where = ['`prompt_response` IS NOT NULL', '`prompt_response` <> ""'];
         $scopeParts = [];
 
         if ($sessionId > 0 && $this->columnExists('responses_detailed', 'response_session_id')) {
@@ -180,8 +180,10 @@ final class ContextController
         }
 
         if ($sessionMinute !== '') {
-            $minuteConditions = ["DATE_FORMAT(`response_datetime`, '%Y-%m-%d %H:%i') = :sess_min"];
-            $params[':sess_min'] = $sessionMinute;
+            $minuteConditions = ['`response_datetime` >= :sess_start', '`response_datetime` < :sess_end'];
+            [$sessionStart, $sessionEnd] = $this->minuteRange($sessionMinute);
+            $params[':sess_start'] = $sessionStart;
+            $params[':sess_end'] = $sessionEnd;
 
             if ($this->columnExists('responses_detailed', 'email_user') && $emailUser !== '') {
                 $minuteConditions[] = '`email_user` = :email_user';
@@ -252,25 +254,30 @@ final class ContextController
         if ($this->columnExists('responses_detailed', 'prompt_code')) {
             if (!$isLegacy && $sessionId > 0) {
                 $sql = "UPDATE responses_detailed rd
-                        JOIN form_fields ff ON TRIM(ff.name) = TRIM(rd.question_name)
+                        JOIN form_fields ff ON ff.name = rd.question_name
                         SET rd.prompt_code = ff.prompt_code
                         WHERE rd.response_session_id = :response_session_id
-                          AND TRIM(COALESCE(ff.prompt_code, '')) <> ''
-                          AND TRIM(COALESCE(rd.prompt_code, '')) = ''";
+                          AND ff.prompt_code IS NOT NULL
+                          AND ff.prompt_code <> ''
+                          AND (rd.prompt_code IS NULL OR rd.prompt_code = '')";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute([':response_session_id' => $sessionId]);
             } elseif ($responseDateTime !== '') {
                 $sql = "UPDATE responses_detailed rd
-                        JOIN form_fields ff ON TRIM(ff.name) = TRIM(rd.question_name)
+                        JOIN form_fields ff ON ff.name = rd.question_name
                         SET rd.prompt_code = ff.prompt_code
                         WHERE rd.email_user = :email_user
-                          AND DATE_FORMAT(rd.response_datetime, '%Y-%m-%d %H:%i') = :response_datetime
-                          AND TRIM(COALESCE(ff.prompt_code, '')) <> ''
-                          AND TRIM(COALESCE(rd.prompt_code, '')) = ''";
+                          AND rd.response_datetime >= :response_start
+                          AND rd.response_datetime < :response_end
+                          AND ff.prompt_code IS NOT NULL
+                          AND ff.prompt_code <> ''
+                          AND (rd.prompt_code IS NULL OR rd.prompt_code = '')";
+                [$responseStart, $responseEnd] = $this->minuteRange($responseDateTime);
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute([
                     ':email_user' => $emailUser,
-                    ':response_datetime' => $responseDateTime,
+                    ':response_start' => $responseStart,
+                    ':response_end' => $responseEnd,
                 ]);
             }
         }
@@ -278,14 +285,15 @@ final class ContextController
         if ($this->columnExists('responses_detailed', 'prompt') && $this->columnExists('responses_detailed', 'prompt_synced_at')) {
             if (!$isLegacy && $sessionId > 0) {
                 $sql = "UPDATE responses_detailed rd
-                        JOIN prompts p ON TRIM(p.assistente) = TRIM(rd.prompt_code)
+                        JOIN prompts p ON p.assistente = rd.prompt_code
                         SET rd.prompt = p.prompt,
                             rd.prompt_synced_at = NOW()
                         WHERE rd.response_session_id = :response_session_id
-                          AND TRIM(COALESCE(rd.prompt_code, '')) <> ''
+                          AND rd.prompt_code IS NOT NULL
+                          AND rd.prompt_code <> ''
                           AND (
                                 rd.prompt IS NULL
-                                OR TRIM(rd.prompt) = ''
+                                OR rd.prompt = ''
                                 OR rd.prompt <> p.prompt
                                 OR rd.prompt_synced_at IS NULL
                           )";
@@ -293,22 +301,26 @@ final class ContextController
                 $stmt->execute([':response_session_id' => $sessionId]);
             } elseif ($responseDateTime !== '') {
                 $sql = "UPDATE responses_detailed rd
-                        JOIN prompts p ON TRIM(p.assistente) = TRIM(rd.prompt_code)
+                        JOIN prompts p ON p.assistente = rd.prompt_code
                         SET rd.prompt = p.prompt,
                             rd.prompt_synced_at = NOW()
                         WHERE rd.email_user = :email_user
-                          AND DATE_FORMAT(rd.response_datetime, '%Y-%m-%d %H:%i') = :response_datetime
-                          AND TRIM(COALESCE(rd.prompt_code, '')) <> ''
+                          AND rd.response_datetime >= :response_start
+                          AND rd.response_datetime < :response_end
+                          AND rd.prompt_code IS NOT NULL
+                          AND rd.prompt_code <> ''
                           AND (
                                 rd.prompt IS NULL
-                                OR TRIM(rd.prompt) = ''
+                                OR rd.prompt = ''
                                 OR rd.prompt <> p.prompt
                                 OR rd.prompt_synced_at IS NULL
                           )";
+                [$responseStart, $responseEnd] = $this->minuteRange($responseDateTime);
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute([
                     ':email_user' => $emailUser,
-                    ':response_datetime' => $responseDateTime,
+                    ':response_start' => $responseStart,
+                    ':response_end' => $responseEnd,
                 ]);
             }
         }
@@ -333,10 +345,11 @@ final class ContextController
 
         $sql = "SELECT 1
                 FROM responses_detailed rd
-                JOIN form_fields ff ON TRIM(ff.name) = TRIM(rd.question_name)
+                JOIN form_fields ff ON ff.name = rd.question_name
                 WHERE {$whereSql}
-                  AND TRIM(COALESCE(ff.prompt_code, '')) <> ''
-                  AND TRIM(COALESCE(rd.prompt_code, '')) = ''
+                  AND ff.prompt_code IS NOT NULL
+                  AND ff.prompt_code <> ''
+                  AND (rd.prompt_code IS NULL OR rd.prompt_code = '')
                 LIMIT 1";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
@@ -350,12 +363,13 @@ final class ContextController
 
         $sql = "SELECT 1
                 FROM responses_detailed rd
-                JOIN prompts p ON TRIM(p.assistente) = TRIM(rd.prompt_code)
+                JOIN prompts p ON p.assistente = rd.prompt_code
                 WHERE {$whereSql}
-                  AND TRIM(COALESCE(rd.prompt_code, '')) <> ''
+                  AND rd.prompt_code IS NOT NULL
+                  AND rd.prompt_code <> ''
                   AND (
                         rd.prompt IS NULL
-                        OR TRIM(rd.prompt) = ''
+                        OR rd.prompt = ''
                         OR rd.prompt_synced_at IS NULL
                   )
                 LIMIT 1";
@@ -384,13 +398,26 @@ final class ContextController
             return null;
         }
 
+        [$responseStart, $responseEnd] = $this->minuteRange($responseDateTime);
         $params[':email_user'] = $emailUser;
-        $params[':response_datetime'] = $responseDateTime;
+        $params[':response_start'] = $responseStart;
+        $params[':response_end'] = $responseEnd;
 
         return [
-            $alias . ".email_user = :email_user AND DATE_FORMAT({$alias}.response_datetime, '%Y-%m-%d %H:%i') = :response_datetime",
+            $alias . '.email_user = :email_user AND ' . $alias . '.response_datetime >= :response_start AND ' . $alias . '.response_datetime < :response_end',
             $params,
         ];
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function minuteRange(string $dateTime): array
+    {
+        $start = substr($dateTime, 0, 16) . ':00';
+        $end = date('Y-m-d H:i:s', strtotime($start . ' +1 minute') ?: time());
+
+        return [$start, $end];
     }
 
     private function columnExists(string $table, string $column): bool

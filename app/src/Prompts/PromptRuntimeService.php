@@ -354,13 +354,16 @@ final class PromptRuntimeService
         }
 
         if ($responseDateTime !== '' && $effectiveEmailUser !== '') {
+            [$responseStart, $responseEnd] = $this->minuteRange($responseDateTime);
             $sql = "SELECT id, question_name, question_label, answer, prompt_code, prompt, response_datetime, company_name, email_resp
                     FROM responses_detailed
                     WHERE email_user = :email_user
-                      AND DATE_FORMAT(response_datetime, '%Y-%m-%d %H:%i') = :response_datetime";
+                      AND response_datetime >= :response_start
+                      AND response_datetime < :response_end";
             $params = [
                 ':email_user' => $effectiveEmailUser,
-                ':response_datetime' => $responseDateTime,
+                ':response_start' => $responseStart,
+                ':response_end' => $responseEnd,
             ];
 
             if ($companyName !== '') {
@@ -431,6 +434,17 @@ final class PromptRuntimeService
             ],
             'source' => $source,
         ];
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function minuteRange(string $dateTime): array
+    {
+        $start = substr($dateTime, 0, 16) . ':00';
+        $end = date('Y-m-d H:i:s', strtotime($start . ' +1 minute') ?: time());
+
+        return [$start, $end];
     }
 
     private function buildFromState(array $promptRow, array $source, array $answers, array $paperMap, bool $executeHeavy = false): array

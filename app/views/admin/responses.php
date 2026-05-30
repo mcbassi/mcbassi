@@ -130,12 +130,24 @@
     scales:{ x:{ ticks:{ maxRotation:0, autoSkip:true, maxTicksLimit:6 } } }
   };
 
+  function resetChart(id){
+    const el = document.getElementById(id);
+    if(!el || !window.Chart) return null;
+
+    const existing = Chart.getChart(el);
+    if(existing) {
+      existing.destroy();
+    }
+
+    return el;
+  }
+
   function buildLine(id, data, label, extra={}){
-    const el = document.getElementById(id); if(!el) return;
+    const el = resetChart(id); if(!el) return;
     new Chart(el, {type:'line', data:{labels:S.labels, datasets:[{label, data, tension:0.25}]}, options:Object.assign({}, commonOptions, extra)});
   }
   function buildBar(id, datasets, extra={}){
-    const el = document.getElementById(id); if(!el) return;
+    const el = resetChart(id); if(!el) return;
     new Chart(el, {type:'bar', data:{labels:S.labels, datasets}, options:Object.assign({}, commonOptions, extra)});
   }
 

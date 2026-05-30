@@ -769,11 +769,16 @@ final class AnaliticaExecutionService
 
         $sessionMinute = $this->sessionMinute($responseDateTime);
         if ($sessionMinute !== null && $questionName !== '') {
+            [$sessionStart, $sessionEnd] = $this->minuteRange($sessionMinute);
             $where = [
                 '`question_name` = :question_name',
-                "DATE_FORMAT(`response_datetime`, '%Y-%m-%d %H:%i') = :sess_min",
+                '`response_datetime` >= :sess_start',
+                '`response_datetime` < :sess_end',
             ];
-            $params = $baseParams + [':sess_min' => $sessionMinute];
+            $params = $baseParams + [
+                ':sess_start' => $sessionStart,
+                ':sess_end' => $sessionEnd,
+            ];
 
             if ($this->columnExists('responses_detailed', 'email_user') && trim($emailUser) !== '') {
                 $where[] = '`email_user` = :email_user';
@@ -822,6 +827,17 @@ final class AnaliticaExecutionService
     {
         $responseDateTime = trim($responseDateTime);
         return $responseDateTime !== '' ? substr($responseDateTime, 0, 16) : null;
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function minuteRange(string $dateTime): array
+    {
+        $start = substr($dateTime, 0, 16) . ':00';
+        $end = date('Y-m-d H:i:s', strtotime($start . ' +1 minute') ?: time());
+
+        return [$start, $end];
     }
 
     private function openAiApiKey(): string
