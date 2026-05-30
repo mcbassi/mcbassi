@@ -429,12 +429,12 @@ private function renderForm(): void
     }
 
     /**
-     * Filtra versÃµes pelo nome da empresa.
+     * Filtra versões pelo nome da empresa.
      *
-     * Este mÃ©todo Ã© usado pelos fluxos:
-     * - Editar Ãšltima
-     * - Nova SessÃ£o
-     * - navegaÃ§Ã£o com ?company=
+     * Este método é usado pelos fluxos:
+     * - Editar Última
+     * - Nova Sessão
+     * - navegação com ?company=
      *
      * @param array<int, array<string, mixed>> $versions
      * @return array<int, array<string, mixed>>

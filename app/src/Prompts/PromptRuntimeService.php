@@ -240,6 +240,21 @@ final class PromptRuntimeService
         }
 
         $rows = $this->responseRowsForSource($source, $emailUser);
+        $promptCodes = [];
+        foreach ($rows as $row) {
+            $questionName = trim((string) ($row['question_name'] ?? ''));
+            if ($questionName === '') {
+                continue;
+            }
+
+            $field = $fieldMap[mb_strtolower($questionName)] ?? [];
+            $promptCode = trim((string) ($row['prompt_code'] ?? $field['prompt_code'] ?? ''));
+            if ($promptCode !== '') {
+                $promptCodes[] = $promptCode;
+            }
+        }
+
+        $promptRowsByAssistente = $this->promptRepository->findByAssistentes($promptCodes);
         $items = [];
 
         foreach ($rows as $position => $row) {
@@ -264,18 +279,24 @@ final class PromptRuntimeService
             ];
 
             $promptCode = trim((string) ($row['prompt_code'] ?? $field['prompt_code'] ?? ''));
-            $promptRow = $promptCode !== '' ? $this->promptRepository->findByAssistente($promptCode) : null;
+            $sessionPromptCode = trim((string) ($row['prompt_code'] ?? ''));
+            $sessionPromptText = trim((string) ($row['prompt'] ?? ''));
+            $promptRow = $promptCode !== '' ? ($promptRowsByAssistente[$promptCode] ?? null) : null;
+            $hasPrompt = $sessionPromptText !== '' || is_array($promptRow);
+
+            if ($onlyWithPrompt && !$hasPrompt) {
+                continue;
+            }
 
             if (!is_array($promptRow)) {
-                $storedPrompt = trim((string) ($row['prompt'] ?? ''));
-                if ($storedPrompt !== '' || $promptCode !== '') {
+                if ($sessionPromptText !== '' || $promptCode !== '') {
                     $promptRow = [
                         'id' => 0,
                         'assistente' => $promptCode,
                         'funcao' => '',
                         'descricao' => '',
-                        'prompt' => $storedPrompt,
-                        'prompt_full_text' => $storedPrompt,
+                        'prompt' => $sessionPromptText,
+                        'prompt_full_text' => $sessionPromptText,
                         'updated_at' => '',
                     ];
                 }
@@ -284,14 +305,6 @@ final class PromptRuntimeService
             $runtime = is_array($promptRow)
                 ? $this->buildFromState($promptRow, $source, $answers, $paperMap, false)
                 : $this->emptyRuntime($source);
-
-            $sessionPromptCode = trim((string) ($row['prompt_code'] ?? ''));
-            $sessionPromptText = trim((string) ($row['prompt'] ?? ''));
-            $hasPrompt = $sessionPromptText !== '';
-
-            if ($onlyWithPrompt && !$hasPrompt) {
-                continue;
-            }
 
             $items[] = [
                 'prompt' => is_array($promptRow) ? $promptRow : [],

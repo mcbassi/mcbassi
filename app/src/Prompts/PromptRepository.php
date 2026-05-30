@@ -129,6 +129,69 @@ final class PromptRepository
         return is_array($row) ? $this->hydrateRow($row) : null;
     }
 
+    /**
+     * @param array<int, string> $assistentes
+     * @return array<string, array<string, mixed>>
+     */
+    public function findByAssistentes(array $assistentes): array
+    {
+        $this->assertPromptsTable();
+
+        $normalized = [];
+        foreach ($assistentes as $assistente) {
+            $assistente = trim((string) $assistente);
+            if ($assistente !== '') {
+                $normalized[$assistente] = true;
+            }
+        }
+
+        $assistentes = array_keys($normalized);
+        if ($assistentes === []) {
+            return [];
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach ($assistentes as $index => $assistente) {
+            $key = ':assistente_' . $index;
+            $placeholders[] = $key;
+            $params[$key] = $assistente;
+        }
+
+        $stmt = $this->pdo()->prepare('
+            SELECT
+                p.*,
+                f.section_code AS ff_section_code,
+                f.sort_order AS ff_sort_order,
+                CASE
+                    WHEN LOCATE("EXECUTAR SQL=", COALESCE(p.prompt, "")) > 0 THEN 1
+                    ELSE 0
+                END AS has_sql
+            FROM prompts p
+            LEFT JOIN form_fields f
+                ON TRIM(f.prompt_code) = TRIM(p.assistente)
+            WHERE TRIM(p.assistente) IN (' . implode(',', $placeholders) . ')
+            ORDER BY
+                TRIM(p.assistente) ASC,
+                (f.sort_order IS NULL) ASC,
+                f.sort_order ASC,
+                p.id ASC
+        ');
+        $stmt->execute($params);
+
+        $mapped = [];
+        foreach (($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) as $row) {
+            $assistente = trim((string) ($row['assistente'] ?? ''));
+            if ($assistente === '' || isset($mapped[$assistente])) {
+                continue;
+            }
+
+            $mapped[$assistente] = $this->hydrateRow($row);
+        }
+
+        return $mapped;
+    }
+
     public function find(int $id): ?array
     {
         $this->assertPromptsTable();

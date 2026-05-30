@@ -60,18 +60,9 @@ final class ContextController
             $context,
             $emailUser,
             $company !== '' ? $company : null,
-            $versionId > 0 ? $versionId : null
+            $versionId > 0 ? $versionId : null,
+            $onlyWithPrompt
         );
-
-        if ($onlyWithPrompt) {
-            $items = is_array($package['items'] ?? null) ? $package['items'] : [];
-            $items = array_values(array_filter($items, static function (array $item): bool {
-                $promptText = trim((string) ($item['prompt']['prompt'] ?? ''));
-                return $promptText !== '';
-            }));
-            $package['items'] = $items;
-            $package['stats']['prompt_count'] = count($items);
-        }
 
         $storedResponses = is_array($selectedVersion) ? $this->storedResponsesBySession($selectedVersion, $emailUser) : [];
 
