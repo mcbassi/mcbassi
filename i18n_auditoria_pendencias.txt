@@ -1,0 +1,261 @@
+Auditoria automática de possíveis textos fixos ainda não mapeados
+Observação: esta lista contém falsos positivos de trechos PHP/JS e textos técnicos. Priorizar itens visíveis ao usuário.
+
+Total bruto: 128 
+
+- ' ); return; } const c = data.cache; openCacheModal(`
+   papers/papers_import_page.js
+- ' + esc(data.execution_id || '') + '
+   papers/app/views/ppt/index.php
+- ' + esc(data.output_dir || '') + '
+   papers/app/views/ppt/index.php
+- ' + esc(data.pptx || '') + '
+   papers/app/views/ppt/index.php
+- '; await refreshStatus(); } catch (e) { const box = $('#status'); if (box) box.innerHTML = '
+   app/views/estrategica/index.php
+- 'OPENAI_API_KEY não definida.']; } $system =
+   papers/papers_import_api.php
+- , para enxergar quando os arquivos da bibliografia realmente entram na execução.
+   app/views/papers/prompts.php
+- , preservando os campos existentes.
+   app/views/fields/index.php
+- . Conexão criptografada SSL.
+   clientes/cadastro.php
+- . Nada é removido automaticamente.
+   app/views/fields/index.php
+- /mês &nbsp;|&nbsp; Pagamento:
+   app/views/Clientes/cadastro.php
+- 1) A importação sincroniza a pasta bibliográfica e depois atualiza a tabela
+   papers/papers_import.php
+- 1. O preview varre a pasta e mostra os arquivos elegíveis.
+   app/views/papers/import.php
+- 2) O botão
+   papers/papers_import.php
+- 2. A importação cria ou atualiza registros na tabela
+   app/views/papers/import.php
+- ?user=marco&amp;email=mcbassi%40grupohdi.com&amp;nivel=BPO
+   app/views/home/index.php
+- cadastrado com sucesso! &nbsp;|&nbsp; Plano:
+   app/views/Clientes/cadastro.php
+- Os capítulos são a base da árvore. Itens já vinculados aparecem carregados aqui.
+   app/views/papers/chapters.php
+- Os dados abaixo podem ser preenchidos manualmente ou a partir de uma sessão selecionada.
+   papers/app/views/ppt/index.php
+- Os dados do cartão são tokenizados pelo Mercado Pago e
+   clientes/cadastro.php
+- Pagamentos processados com segurança por
+   clientes/cadastro.php
+- Painel lateral com todas as publicações filtradas por nome.
+   app/views/papers/chapters.php
+- Painel por capítulo
+   app/views/diagnostico/results.php
+- Palavras-chave (separe por vírgula)
+   papers/papers_form.php
+- Paper não encontrado
+   app/views/papers/view.php
+- Papers - Relatório
+   papers/papers_report.php
+- Pendências obrigatórias
+   app/views/diagnostico/results.php
+- pergunta(s)
+   app/views/grupos/index.php
+- Pergunta:
+   app/views/ai/context.php
+- Perguntas disponíveis
+   app/views/grupos/index.php
+- Perguntas do grupo
+   app/views/grupos/index.php
+- Perguntas do questionário
+   app/views/prompts/form.php
+- Perguntas no grupo
+   app/views/grupos/index.php
+- Ponto de entrada da área de dúvidas.
+   app/views/analitica/duvidas.php
+- Preparar sessão
+   app/views/ai/context.php
+- Preview máx.
+   app/views/papers/import.php
+- Prioridades / Relatório por Grupo
+   app/views/prioridades/group_report.php
+- Prompt / capítulo
+   app/views/papers/index.php
+- Prompt atualizado após a última execução. Reexecutar.
+   app/views/ai/context.php
+- Prompts do catálogo
+   app/views/papers/view.php
+- Pronto para migração
+   app/views/module/placeholder.php
+- Prévia dos papers
+   app/views/papers/prompts.php
+- Próx. Vencimento
+   app/views/Clientes/index.php
+- Próxima ação
+   app/views/module/placeholder.php
+- Publicações no sistema
+   app/views/papers/index.php
+- Página não encontrada.
+   app/views/errors/404.php
+- Ranking + Gráfico
+   app/views/wms/dashboard.php
+- Recarregar módulo
+   app/views/tela_sql/index.php
+- Recarregar última versão
+   app/views/diagnostico/respond.php
+- Relaciona perguntas do questionário ao grupo, substituindo a lista atual ao salvar.
+   app/views/grupos/index.php
+- Relacionar a Questão/Grupo (prompt_code)
+   papers/papers_form.php
+- Relatório analítico do grupo
+   app/views/prioridades/index.php
+- Relatório de Papers
+   papers/papers_report.php
+- Relatório Integral IA Analítica
+   app/views/ai/context.php
+- Relação de publicações
+   app/views/papers/index.php
+- Responder questionário
+   app/views/diagnostico/respond.php
+- Respostas do grupo selecionado
+   app/views/prioridades/index.php
+- Resultado Analítico por Pergunta
+   app/views/ai/context.php
+- Resultado consolidado dos prompts
+   app/views/damodaram/wms_bridge.php
+- Resultado do filtro
+   app/views/papers/index.php
+- Resultado esperado
+   app/views/prioridades/index.php
+- Riscos por nível (contagem de campos riesgo_*)
+   app/views/admin/responses.php
+- Salvar como completo
+   app/views/diagnostico/respond.php
+- Salvar parcialmente
+   app/views/diagnostico/respond.php
+- Salvar perguntas
+   app/views/ai/context.php
+- Salvar relatório integral
+   app/views/ai/context.php
+- Salvar Resultado
+   app/views/prioridades/index.php
+- Salvar snapshot
+   app/views/damodaram/crud.php
+- Salvar versão completa
+   app/views/diagnostico/formulario.php
+- Salvar versão parcial
+   app/views/diagnostico/formulario.php
+- Saída bruta do Prompt #2:
+   app/views/prioridades/index.php
+- Selecione a sessão
+   app/views/prioridades/index.php
+- Selecione o questionário
+   app/views/damodaram/_toolbar.php
+- Selecione um questionário para consultar.
+   app/views/damodaram/wms_bridge.php
+- Selecione uma pergunta
+   app/views/prompts/form.php
+- Selecione uma sessão do questionário e acione o motor validado de PPT dentro do menu principal do sistema.
+   papers/app/views/ppt/index.php
+- Selecione uma sessão e um grupo para carregar as respostas.
+   app/views/prioridades/index.php
+- Sem conteúdo.
+   app/views/ai/context.php
+- Sem métricas.
+   app/views/damodaram/crud.php
+- Sem vínculo
+   app/views/papers/prompts.php
+- Sessão (min)
+   app/views/admin/responses.php
+- Sessão, base path, CSRF e autenticação por query string continuam ativos.
+   app/views/module/placeholder.php
+- Seções
+   app/views/fields/index.php
+- Snapshot não encontrado.
+   app/views/damodaram/crud.php
+- Soma itens selecionados nos campos de múltipla escolha “tiene”.
+   app/views/admin/responses.php
+- Status / Debug
+   papers/app/views/ppt/index.php
+- Status RAG
+   app/views/papers/form.php
+- Status:
+   app/views/diagnostico/results.php
+- Tela inicial da Analítica pronta para migração.
+   app/views/analitica/index.php
+- Tela ligada diretamente à tabela
+   app/views/fields/index.php
+- Tipo
+   app/views/fields/index.php
+- Todos os campos reais da tabela
+   app/views/fields/form.php
+- Top por Citações
+   papers/papers_report.php
+- Total Citações
+   papers/papers_report.php
+- Total de perguntas com resultado:
+   app/views/ai/context.php
+- Troque de versão sem perder o contexto da empresa atual.
+   app/views/diagnostico/results.php
+- Título / indicadores
+   app/views/papers/index.php
+- Título sugerido
+   app/views/papers/import.php
+- Use a URL de entrada do legado para abrir a sessão.
+   app/views/home/index.php
+- Use os botões para gerar os artefatos da Analítica.
+   app/views/ai/context.php
+- Usuário:
+   app/views/module/placeholder.php
+- Versão aberta:
+   app/views/diagnostico/respond.php
+- Versão funcional legada adaptada ao shell novo, preservando Builder, SQL, Prompt e Catálogo.
+   app/views/tela_sql/index.php
+- Versão vigente
+   app/views/diagnostico/history.php
+- Versão vigente:
+   app/views/diagnostico/results.php
+- versão(ões) ·
+   app/views/diagnostico/history.php
+- Versões
+   app/views/diagnostico/history.php
+- Versões desta empresa
+   app/views/diagnostico/results.php
+- Versões salvas
+   app/views/diagnostico/formulario.php
+- Visual em blocos: metadados na linha superior, prompt principal em área maior e SQL operacional em área lateral menor.
+   app/views/prompts/index.php
+- Visualização com realce
+   app/views/prompts/form.php
+- Visualização do projeto.
+   app/views/atividades/project_view.php
+- Visualização somente leitura de documento Word.
+   app/views/papers/file_preview.php
+- Visualização somente leitura de planilha Excel.
+   app/views/papers/file_preview.php
+- Visualização somente leitura do conteúdo textual.
+   app/views/papers/file_preview.php
+- Você pode responder agora, salvar parcialmente e continuar depois. O processamento sempre considera a última versão salva.
+   app/views/diagnostico/respond.php
+- Volte para a lista da biblioteca e escolha um registro válido.
+   app/views/papers/view.php
+- { const el = $(sel); if (el) el.disabled = !!loading; }); const statusBox = $('#status'); if (!statusBox) return; statusBox.innerHTML = loading ? '
+   app/views/estrategica/index.php
+- | Plano:
+   clientes/cadastro.php
+- · Nível:
+   app/views/module/placeholder.php
+- Árvore de capítulos
+   app/views/papers/chapters.php
+- Última atualização
+   app/views/papers/view.php
+- Última versão salva em
+   app/views/diagnostico/respond.php
+- Último salvamento:
+   app/views/diagnostico/history.php
+- ⚠️ Não consegui carregar grupos.
+   app/views/estrategica/index.php
+- ✅ Cliente
+   app/views/Clientes/cadastro.php
+- 🔄 Executar importação
+   papers/papers_import.php
+- 🔒 Os dados do cartão são tokenizados pelo
+   app/views/Clientes/cadastro.php

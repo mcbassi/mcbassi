@@ -1,0 +1,204 @@
+
+.damodaram-page {
+    background: #eef3f9;
+    margin: 0;
+}
+
+.damodaram-shell {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    min-height: 100vh;
+}
+
+.damodaram-sidebar {
+    background: #16263d;
+    color: #e4ecfb;
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    position: sticky;
+    top: 0;
+    align-self: start;
+    min-height: 100vh;
+}
+
+.damodaram-brand strong {
+    display: block;
+    font-size: 1.3rem;
+}
+
+.damodaram-brand__eyebrow {
+    display: inline-block;
+    margin-bottom: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.1);
+    font-size: .75rem;
+    text-transform: uppercase;
+}
+
+.damodaram-brand p {
+    margin: 8px 0 0;
+    color: #b8c7df;
+    line-height: 1.45;
+}
+
+.damodaram-nav {
+    display: grid;
+    gap: 6px;
+}
+
+.damodaram-nav__link {
+    display: block;
+    color: #d9e3f5;
+    text-decoration: none;
+    padding: 10px 12px;
+    border-radius: 12px;
+}
+
+.damodaram-nav__link:hover,
+.damodaram-nav__link.is-active {
+    background: rgba(255,255,255,.1);
+    color: #fff;
+}
+
+.damodaram-sidebar__block {
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    padding: 14px;
+}
+
+.damodaram-sidebar__block h3 {
+    margin: 0 0 12px;
+    font-size: .95rem;
+}
+
+.damodaram-filter-form,
+.damodaram-filter-form label {
+    display: grid;
+    gap: 6px;
+}
+
+.damodaram-filter-form {
+    gap: 10px;
+}
+
+.damodaram-filter-form span {
+    font-size: .8rem;
+    color: #c3d2ea;
+}
+
+.damodaram-filter-form input,
+.damodaram-filter-form select {
+    width: 100%;
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 10px;
+    background: rgba(8,17,31,.35);
+    color: #fff;
+    padding: 9px 10px;
+}
+
+.damodaram-filter-form__actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.damodaram-recent-list {
+    display: grid;
+    gap: 8px;
+    max-height: 280px;
+    overflow: auto;
+}
+
+.damodaram-recent {
+    display: grid;
+    gap: 2px;
+    text-decoration: none;
+    color: #dbe7fb;
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: rgba(9,20,36,.25);
+}
+
+.damodaram-recent:hover {
+    background: rgba(255,255,255,.1);
+}
+
+.damodaram-recent span,
+.damodaram-recent small {
+    color: #b9c9e3;
+}
+
+.damodaram-sidebar__footer {
+    margin-top: auto;
+    display: grid;
+    gap: 8px;
+}
+
+.damodaram-main {
+    padding: 24px 28px 36px;
+}
+
+.damodaram-hero {
+    margin-bottom: 18px;
+}
+
+.damodaram-hero__meta {
+    display: grid;
+    gap: 6px;
+    text-align: right;
+    color: #5d6e85;
+    font-size: .92rem;
+}
+
+.damodaram-kpi-grid {
+    margin-bottom: 18px;
+}
+
+.damodaram-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.damodaram-card {
+    background: #fff;
+    border: 1px solid #dde5f0;
+    border-radius: 22px;
+    padding: 18px;
+    box-shadow: 0 18px 35px rgba(26,44,76,.08);
+}
+
+.damodaram-card h2,
+.damodaram-card h3 {
+    margin-top: 0;
+}
+
+.damodaram-table td,
+.damodaram-table th {
+    white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+    .damodaram-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .damodaram-sidebar {
+        position: static;
+        min-height: auto;
+    }
+
+    .damodaram-grid-2 {
+        grid-template-columns: 1fr;
+    }
+
+    .damodaram-hero__meta {
+        text-align: left;
+    }
+}

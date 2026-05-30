@@ -1,0 +1,26 @@
+Patch multilíngue consolidado
+
+Arquivos alterados:
+- app/src/Support/I18n.php
+- app/src/Support/View.php
+- app/lang/pt.php
+- app/lang/es.php
+- app/lang/en.php
+- public/assets/js/shell.js
+
+O que foi corrigido:
+1. Tradução também em requisições parciais do SPA (_partial=1), feita no servidor em View::render().
+2. Título da página parcial agora também passa por tradução.
+3. Criada função I18n::translateText() para tradução de textos simples.
+4. Reforçada tradução no front-end com observador de mutações, para conteúdos inseridos por JavaScript depois da carga.
+5. Ampliado dicionário auto.* com mais termos de Diagnóstico, IA Analítica, IA Prioridades, Estratégica, PPT, Bibliografia, Clientes, WMS, Damodaran e telas administrativas.
+
+Como aplicar:
+1. Faça backup dos arquivos atuais.
+2. Copie esta pasta sobre a raiz do projeto C:\xampp\htdocs\Produtividade_emp.
+3. Reinicie o Apache.
+4. Faça Ctrl+F5 no navegador.
+5. Teste com ?lang=es e ?lang=en.
+
+Limite conhecido:
+Textos livres vindos do banco de dados, como perguntas completas, respostas, prompts salvos e descrições cadastradas, só serão 100% multilíngues se o banco passar a guardar versões por idioma ou se houver uma tabela de traduções.

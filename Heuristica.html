@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, print-scale: 1">
+    <title>Guia Heurístico e Dashboard - WMS + Damodaran</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+            background: #eef2f5;
+            color: #1a2a3f;
+            line-height: 1.45;
+            padding: 2rem 1rem;
+        }
+
+        .document-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-radius: 20px;
+            padding: 2rem 2rem 3rem 2rem;
+        }
+
+        /* cabeçalho */
+        .header {
+            border-bottom: 3px solid #0b5e7c;
+            margin-bottom: 1.8rem;
+            padding-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .title-section h1 {
+            font-size: 1.9rem;
+            color: #0a2e44;
+            letter-spacing: -0.5px;
+        }
+        .title-section p {
+            color: #2c6e9e;
+            font-weight: 500;
+            margin-top: 6px;
+        }
+        .version {
+            text-align: right;
+            font-size: 0.85rem;
+            color: #4a627a;
+            background: #eef2fa;
+            padding: 0.3rem 0.8rem;
+            border-radius: 30px;
+        }
+
+        /* seções */
+        section {
+            margin-bottom: 2.5rem;
+        }
+        h2 {
+            font-size: 1.6rem;
+            border-left: 6px solid #0f7c9c;
+            padding-left: 1rem;
+            margin: 1.5rem 0 1rem 0;
+            color: #144e6b;
+        }
+        h3 {
+            font-size: 1.3rem;
+            margin: 1rem 0 0.8rem 0;
+            color: #1a5d7a;
+            font-weight: 600;
+        }
+        .card-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+        .card {
+            background: #f8fafc;
+            border-radius: 1rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            flex: 1 1 280px;
+            border: 1px solid #e2edf2;
+            transition: 0.1s;
+        }
+        .card-header {
+            background: #e6f0f5;
+            padding: 0.8rem 1rem;
+            border-radius: 1rem 1rem 0 0;
+            font-weight: bold;
+            font-size: 1.1rem;
+            border-bottom: 1px solid #cbdbe2;
+        }
+        .card-body {
+            padding: 1rem;
+        }
+        .indicator {
+            margin: 12px 0;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed #cddfe7;
+            padding-bottom: 6px;
+        }
+        .score {
+            font-weight: 800;
+            font-size: 1.2rem;
+        }
+        .semaphore {
+            display: inline-block;
+            width: 28px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .green { color: #1f8a4c; background:#e1f7ea; border-radius: 20px; padding: 0 8px; }
+        .yellow { color: #b47c00; background:#fff0cf; border-radius: 20px; padding: 0 8px; }
+        .red { color: #b91c1c; background:#ffe6e6; border-radius: 20px; padding: 0 8px; }
+
+        /* tabela heurísticas responsiva */
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 1.2rem 0;
+            border-radius: 16px;
+            border: 1px solid #dce5ec;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        th {
+            background: #1f5e7e;
+            color: white;
+            padding: 12px 8px;
+            font-weight: 600;
+            text-align: center;
+        }
+        td {
+            border: 1px solid #cbdde6;
+            padding: 10px 8px;
+            vertical-align: top;
+            background: #fff;
+        }
+        tr:nth-child(even) td {
+            background-color: #f9fdfe;
+        }
+        .badge {
+            background: #d4e3ed;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: #144e6b;
+            display: inline-block;
+        }
+
+        .dashboard-main {
+            background: linear-gradient(145deg, #f0f6fa 0%, #ffffff 100%);
+            padding: 1.5rem;
+            border-radius: 28px;
+            border: 1px solid #cbe0ea;
+            margin: 2rem 0;
+        }
+        .total-score {
+            background: #113e54;
+            color: white;
+            border-radius: 36px;
+            padding: 1rem 2rem;
+            text-align: center;
+            margin-bottom: 1.8rem;
+        }
+        .total-score h4 {
+            font-size: 1.3rem;
+            letter-spacing: 1px;
+        }
+        .total-score .big-number {
+            font-size: 3rem;
+            font-weight: 800;
+            margin: 0.2rem 0;
+        }
+        .alert-box {
+            background: #fff3e0;
+            border-left: 8px solid #e67e22;
+            padding: 1rem 1.4rem;
+            border-radius: 20px;
+            margin: 1.8rem 0;
+        }
+        .footer-note {
+            font-size: 0.75rem;
+            text-align: center;
+            border-top: 1px solid #cde0e8;
+            padding-top: 1.8rem;
+            margin-top: 2rem;
+            color: #2c697e;
+        }
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+                margin: 0;
+            }
+            .document-container {
+                box-shadow: none;
+                padding: 0.8rem;
+                max-width: 100%;
+            }
+            .table-wrapper {
+                overflow: visible;
+            }
+            .badge, .semaphore {
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+            .card, .dashboard-main, .alert-box {
+                break-inside: avoid;
+            }
+            .version {
+                background: #f0f0f0;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="document-container">
+    <div class="header">
+        <div class="title-section">
+            <h1>📊 Guia Heurístico & Dashboard</h1>
+            <p>Correlação WMS + Damodaran · Diagnóstico multidimensional para agente de IA</p>
+        </div>
+        <div class="version">
+            Versão 1.0 · 15/04/2026
+        </div>
+    </div>
+
+    <!-- INTRODUÇÃO RESUMIDA -->
+    <section>
+        <p style="font-size:1rem; margin-bottom:0.5rem;">Este documento define <strong>12 caminhos críticos de análise</strong> que o agente deve executar para evitar análises dispersas. Cada rota correlaciona respostas do questionário com dados do BI (WMS e métricas financeiras de Damodaran). O dashboard sintetiza a saúde geral da empresa em <strong>4 blocos</strong> e um score composto, permitindo ajustes no valuation.</p>
+    </section>
+
+    <!-- =========== TABELA DE HEURÍSTICAS (CAMINHOS CRÍTICOS) ========== -->
+    <h2>🧭 Tabela de Caminhos Críticos de Análise</h2>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr><th>#</th><th>Caminho Crítico</th><th>Objetivo</th><th>Método Analítico</th><th>Resultado Esperado (Verde)</th><th>Indicações / Ações</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td><strong>Validação da Estratégia</strong></td><td>Coerência entre estratégia (custo/diferenciação) e KPIs</td><td><code>estrategia_generica</code> vs. custo por pedido (WMS), nível de serviço, margem setorial</td><td>Custo: custo ≤ média setor; Diferenciação: nível serviço ≥98% e margem > média</td><td>Incoerente → alerta estratégico; Coerente → valida vantagem competitiva no valuation</td></tr>
+                <tr><td>2</td><td><strong>Maturidade Operacional (Lean)</strong></td><td>Avaliar práticas Lean e eficiência WMS</td><td>Pontuação <code>procesos_modernos</code> (1-5) + <code>exposicion_problemas</code> vs. produtividade, giro de estoque</td><td>Pontuação ≥4 → KPIs 20-30% melhores que média setor</td><td>Baixa maturidade → treinar Lean; Alta maturidade → buscar certificação</td></tr>
+                <tr><td>3</td><td><strong>Qualidade do Seguimento</strong></td><td>Uso de dados e redução de variabilidade</td><td><code>indicadores_desempeno</code> + <code>revision_indicadores</code> vs. desvio lead time (WMS)</td><td>Pontuação ≥4 → menor variabilidade operacional</td><td>Baixa → implantar reuniões curtas com causas raiz; Alta → análises preditivas</td></tr>
+                <tr><td>4</td><td><strong>Horizonte de Objetivos</strong></td><td>Visão longo prazo desdobrada</td><td><code>horizonte_tiempo</code> e <code>motivacion_objetivos</code> vs. ciclo de caixa e investimento inovação</td><td>Horizonte misto (5) → maior resiliência e margem EBIT</td><td>Só curto prazo → planejamento estratégico; LTP desdobrado → BSC</td></tr>
+                <tr><td>5</td><td><strong>Incentivos e Retenção</strong></td><td>Política de incentivos e impacto rotatividade</td><td><code>sistema_evaluacion</code>, <code>bajo_rendimiento</code> vs. rotatividade e produtividade (WMS)</td><td>Pontuação ≥4 → rotatividade ≤10% e produtividade +15%</td><td>Baixa → avaliação 360° e metas SMART; Alta → planos de carreira</td></tr>
+                <tr><td>6</td><td><strong>Capital Relacional</strong></td><td>Redes de apoio e acesso a crédito</td><td>Networking Score vs. <code>creditos_formales</code> e obstáculo financiamento</td><td>Score alto → 2x mais chance de crédito formal</td><td>Baixo networking → associar-se a câmaras e feiras; Alto → usar rede para co-inovação</td></tr>
+                <tr><td>7</td><td><strong>Urgência Financeira</strong></td><td>Pressão e disposição a ceder controle</td><td><code>presion_financiera_operaciones</code> (1-5) vs. <code>ceder_control</code></td><td>Pressão baixa + abertura → valuation atraente</td><td>Pressão alta + resistência → reestruturar dívida ou buscar híbrido</td></tr>
+                <tr><td>8</td><td><strong>Adoção Tecnológica</strong></td><td>Digitalização e integração WMS</td><td>Tech Score (0-10) vs. taxa de erro e tempo ciclo (WMS)</td><td>Tech Score ≥7 → erros <1% e tempo ciclo 30% menor</td><td>Baixo score → implantar WMS ou integração ERP; Alto score → IA preditiva</td></tr>
+                <tr><td>9</td><td><strong>Concentração de Clientes</strong></td><td>Dependência e volatilidade fluxo caixa</td><td><code>concentracion_cliente_grande</code> (%) vs. variabilidade mensal pedidos</td><td>Cliente único ≤20% → baixo risco</td><td>Alta concentração (>40%) → diversificar carteira, contratos longos</td></tr>
+                <tr><td>10</td><td><strong>Riscos declarados vs reais</strong></td><td>Alinhamento matriz risco x indicadores objetivos</td><td>Cada <code>riesgo_*</code> comparado com ruptura estoque (WMS) e devoluções</td><td>Risco "Alto" associado a falhas reais; "Baixo" a estabilidade</td><td>Subestimação → auditoria/seguro; Superestimação → revisar matriz</td></tr>
+                <tr><td>11</td><td><strong>Ciclo de vida empresa vs indústria</strong></td><td>Desalinhamento de crescimento</td><td><code>anios_operacion_hoy</code> classificado vs. <code>ciclo_vida</code> indústria</td><td>Crescimento em indústria de crescimento → alinhamento</td><td>Desalinhamento → reposicionamento ou inovação</td></tr>
+                <tr><td>12</td><td><strong>Governança e Propriedade</strong></td><td>Impacto no custo de capital</td><td><code>gobierno_corporativo</code>, <code>junta_directiva</code> vs. acesso a crédito formal</td><td>Governança avançada + junta → menor custo dívida</td><td>Básica → criar conselho consultivo; Avançada → listagem (se aplicável)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- =============== DASHBOARD PROPOSTA ================ -->
+    <h2>📈 Dashboard de Saúde Geral da Empresa</h2>
+    <div class="dashboard-main">
+        <!-- Exemplo com valores simulados para demonstração visual (o agente substitui pelos scores reais) -->
+        <div class="total-score">
+            <h4>🏆 SCORE GERAL DE SAÚDE (EXEMPLO)</h4>
+            <div class="big-number">6.1</div>
+            <p>Classificação: REGULAR · Faixa de risco moderado</p>
+        </div>
+
+        <div class="card-grid">
+            <!-- BLOCO 1: EFICIÊNCIA OPERACIONAL -->
+            <div class="card">
+                <div class="card-header">⚙️ Bloco 1 – Eficiência Operacional</div>
+                <div class="card-body">
+                    <div class="indicator"><span>Consistência Estratégica</span><span class="score">10 <span class="semaphore green">🟢</span></span></div>
+                    <div class="indicator"><span>Maturidade Lean</span><span class="score">6.5 <span class="semaphore yellow">🟡</span></span></div>
+                    <div class="indicator"><span>Qualidade de Seguimento</span><span class="score">7.0 <span class="semaphore green">🟢</span></span></div>
+                    <div class="indicator"><span>Tech Score</span><span class="score">5.5 <span class="semaphore yellow">🟡</span></span></div>
+                    <div style="margin-top:12px; font-weight:bold;">Nota Bloco: 7.2 🟢</div>
+                    <div style="font-size:0.7rem; color:#2c6b2c;">Operação enxuta com margem para automação</div>
+                </div>
+            </div>
+            <!-- BLOCO 2: GESTÃO DE PESSOAS -->
+            <div class="card">
+                <div class="card-header">👥 Bloco 2 – Pessoas & Incentivos</div>
+                <div class="card-body">
+                    <div class="indicator"><span>Alinhamento de Objetivos</span><span class="score">7.5 <span class="semaphore green">🟢</span></span></div>
+                    <div class="indicator"><span>Incentivos e Retenção</span><span class="score">5.0 <span class="semaphore yellow">🟡</span></span></div>
+                    <div style="margin-top:12px; font-weight:bold;">Nota Bloco: 6.1 🟡</div>
+                    <div class="badge">Melhorar política de bônus</div>
+                </div>
+            </div>
+            <!-- BLOCO 3: CAPITAL RELACIONAL E FINANCIAMENTO -->
+            <div class="card">
+                <div class="card-header">🤝 Bloco 3 – Capital Relacional</div>
+                <div class="card-body">
+                    <div class="indicator"><span>Networking Score</span><span class="score">3.0 <span class="semaphore red">🔴</span></span></div>
+                    <div class="indicator"><span>Urgência Financeira</span><span class="score">6.0 <span class="semaphore yellow">🟡</span></span></div>
+                    <div class="indicator"><span>Acesso a Crédito Formal</span><span class="score">0 <span class="semaphore red">🔴</span></span></div>
+                    <div style="margin-top:12px; font-weight:bold;">Nota Bloco: 4.3 🔴</div>
+                    <div>Redes fracas, crédito ausente → risco de liquidez</div>
+                </div>
+            </div>
+            <!-- BLOCO 4: RISCOS E GOVERNANÇA -->
+            <div class="card">
+                <div class="card-header">⚠️ Bloco 4 – Riscos & Governança</div>
+                <div class="card-body">
+                    <div class="indicator"><span>Consistência de Riscos</span><span class="score">6.0 <span class="semaphore yellow">🟡</span></span></div>
+                    <div class="indicator"><span>Governança Corporativa</span><span class="score">6.0 <span class="semaphore yellow">🟡</span></span></div>
+                    <div class="indicator"><span>Concentração de Clientes</span><span class="score">5.0 <span class="semaphore yellow">🟡</span></span></div>
+                    <div style="margin-top:12px; font-weight:bold;">Nota Bloco: 5.8 🟡</div>
+                    <div>Riscos moderados, dependência comercial média</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- alertas e recomendações (exemplo) -->
+        <div class="alert-box">
+            <h3 style="margin-top:0;">🔔 Principais Alertas (Baseado nos scores acima)</h3>
+            <ul style="margin-left:1.2rem;">
+                <li><strong>Capital relacional muito baixo</strong> (poucos contatos com financeiras e mesmo setor).</li>
+                <li><strong>Sem crédito formal</strong> → dificuldade de financiar crescimento ou capital de giro.</li>
+                <li><strong>Tech Score médio</strong> (falta integração WMS-ERP ou ERP ausente).</li>
+            </ul>
+            <h3>✅ Recomendações Prioritárias</h3>
+            <ul>
+                <li>Participar de associações empresariais e rodadas de negócio para aumentar networking.</li>
+                <li>Buscar linha de crédito ou capital de giro através de fintechs ou bancos de fomento.</li>
+                <li>Integrar WMS com ERP para reduzir erros operacionais e aumentar giro de estoque.</li>
+                <li>Revisar política de incentivos: incluir metas individuais e bônus semestrais.</li>
+            </ul>
+        </div>
+
+        <!-- Tabela de ajustes no valuation Damodaran -->
+        <h3 style="margin-top:1rem;">📐 Ajustes no Modelo Damodaran (Baseado no Score Geral)</h3>
+        <div class="table-wrapper">
+            <table style="font-size:0.85rem;">
+                <thead><tr><th>Score Geral</th><th>Classificação</th><th>Ajuste no WACC (Custo de Capital)</th><th>Ajuste na Taxa de Crescimento Perpétuo</th></tr></thead>
+                <tbody>
+                    <tr><td>≥ 8,5</td><td>Excelente</td><td>Reduzir 1,0%</td><td>Aumentar 0,5%</td></tr>
+                    <tr><td>7,0 – 8,4</td><td>Boa</td><td>Reduzir 0,5%</td><td>Manter</td></tr>
+                    <tr><td>5,0 – 6,9</td><td>Regular</td><td>Aumentar 0,5%</td><td>Reduzir 0,5%</td></tr>
+                    <tr><td>&lt; 5,0</td><td>Crítica</td><td>Aumentar 1,5%</td><td>Reduzir 1,0% (ou valor liquidação)</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p style="margin-top: 0.5rem; font-size:0.85rem;">* O agente deve recalcular os scores com base nas respostas reais do questionário e dados do BI (WMS e Damodaran). Esta tabela é o esqueleto heurístico.</p>
+    </div>
+
+    <!-- Índices sintéticos para uso do agente -->
+    <h2>🧠 Índices Sintéticos e Fórmulas (Agente)</h2>
+    <div style="background:#f3f9fe; padding:1rem; border-radius: 20px; margin: 1rem 0;">
+        <p><strong>📌 Índice de Maturidade Operacional (IMO)</strong> = Média(`procesos_modernos`; `exposicion_problemas`; `indicadores_desempeno`) × 2 → escala 0-10.</p>
+        <p><strong>📌 Tech Score</strong> = Pontuação ponderada baseada nas opções mais avançadas de cada bloco TECNO_* (ERP, SRM, CRM, WMS integrado, controle estatístico). Converter para 0-10.</p>
+        <p><strong>📌 Networking Score</strong> = Percentil (número de contatos e frequência) normalizado para 0-10 usando a base de empresas comparáveis.</p>
+        <p><strong>📌 Score Geral Saúde</strong> = (Bloco1×0,35)+(Bloco2×0,20)+(Bloco3×0,25)+(Bloco4×0,20)</p>
+        <p><strong>📌 Consistência Estratégica:</strong> 10 (coerência total), 5 (parcial), 0 (inconsistência) baseado na correlação WMS + Damodaran setorial.</p>
+    </div>
+
+    <!-- Guia rápido de execução para o agente -->
+    <h2>⚙️ Guia de Execução para o Agente (Instruções)</h2>
+    <ol style="margin-left:1.5rem; line-height:1.5;">
+        <li><strong>Carregar este documento</strong> como modelo heurístico principal.</li>
+        <li><strong>Executar os 12 caminhos críticos</strong> priorizando ordem: 1,2,8,9,10,7,12,3,4,5,6,11. Se faltar dado, pular com registro.</li>
+        <li><strong>Calcular os blocos</strong> do dashboard conforme fórmulas acima, usando dados reais da empresa (respostas do questionário + BI).</li>
+        <li><strong>Gerar relatório final</strong> contendo: Score geral, classificação, notas por bloco com semáforo, lista de alertas (itens &lt;5) e três recomendações principais.</li>
+        <li><strong>Aplicar ajustes no valuation</strong> (modelo Damodaran) conforme tabela de ajuste WACC/crescimento.</li>
+        <li><strong>Evitar análises desfocadas</strong> – qualquer desvio da heurística deve ser justificado como exceção documentada.</li>
+    </ol>
+
+    <div class="footer-note">
+        Documento Heurístico v1.0 – Projetado para agente de correlação WMS + Damodaran. Dashboard e tabela de caminhos fornecem orientação sistemática para avaliar saúde empresarial e ajustar valuation.
+    </div>
+</div>
+</body>
+</html>
