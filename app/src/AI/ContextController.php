@@ -52,7 +52,7 @@ final class ContextController
 
         $selectedVersion = $versionId > 0 ? $versionsRepo->versionById($versionId, $emailUser) : null;
 
-        if ($context === 'analitica' && is_array($selectedVersion)) {
+        if ($context === 'analitica' && is_array($selectedVersion) && $this->hasSessionPromptSyncPending($selectedVersion, $emailUser)) {
             $this->syncSessionPrompts($selectedVersion, $emailUser);
         }
 
@@ -312,6 +312,85 @@ final class ContextController
                 ]);
             }
         }
+    }
+
+    /**
+     * @param array<string, mixed> $selectedVersion
+     */
+    private function hasSessionPromptSyncPending(array $selectedVersion, string $emailUser): bool
+    {
+        if (!$this->columnExists('responses_detailed', 'prompt_code')) {
+            return false;
+        }
+
+        $scope = $this->sessionScopeWhere($selectedVersion, $emailUser, 'rd');
+        if ($scope === null) {
+            return false;
+        }
+
+        [$whereSql, $params] = $scope;
+        $pdo = $this->database->pdo();
+
+        $sql = "SELECT 1
+                FROM responses_detailed rd
+                JOIN form_fields ff ON TRIM(ff.name) = TRIM(rd.question_name)
+                WHERE {$whereSql}
+                  AND TRIM(COALESCE(ff.prompt_code, '')) <> ''
+                  AND TRIM(COALESCE(rd.prompt_code, '')) = ''
+                LIMIT 1";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        if ($stmt->fetchColumn() !== false) {
+            return true;
+        }
+
+        if (!$this->columnExists('responses_detailed', 'prompt') || !$this->columnExists('responses_detailed', 'prompt_synced_at')) {
+            return false;
+        }
+
+        $sql = "SELECT 1
+                FROM responses_detailed rd
+                JOIN prompts p ON TRIM(p.assistente) = TRIM(rd.prompt_code)
+                WHERE {$whereSql}
+                  AND TRIM(COALESCE(rd.prompt_code, '')) <> ''
+                  AND (
+                        rd.prompt IS NULL
+                        OR TRIM(rd.prompt) = ''
+                        OR rd.prompt_synced_at IS NULL
+                  )
+                LIMIT 1";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
+    /**
+     * @param array<string, mixed> $selectedVersion
+     * @return array{0:string,1:array<string, mixed>}|null
+     */
+    private function sessionScopeWhere(array $selectedVersion, string $emailUser, string $alias): ?array
+    {
+        $isLegacy = !empty($selectedVersion['is_legacy']) || strtolower(trim((string) ($selectedVersion['status'] ?? ''))) === 'legacy';
+        $sessionId = (int) ($selectedVersion['id'] ?? 0);
+        $responseDateTime = trim((string) ($selectedVersion['response_datetime'] ?? ''));
+        $params = [];
+
+        if (!$isLegacy && $sessionId > 0 && $this->columnExists('responses_detailed', 'response_session_id')) {
+            return [$alias . '.response_session_id = :response_session_id', [':response_session_id' => $sessionId]];
+        }
+
+        if ($responseDateTime === '' || $emailUser === '') {
+            return null;
+        }
+
+        $params[':email_user'] = $emailUser;
+        $params[':response_datetime'] = $responseDateTime;
+
+        return [
+            $alias . ".email_user = :email_user AND DATE_FORMAT({$alias}.response_datetime, '%Y-%m-%d %H:%i') = :response_datetime",
+            $params,
+        ];
     }
 
     private function columnExists(string $table, string $column): bool

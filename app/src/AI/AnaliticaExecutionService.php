@@ -744,6 +744,10 @@ final class AnaliticaExecutionService
             $sets[] = '`prompt_executed_at` = :prompt_executed_at';
             $baseParams[':prompt_executed_at'] = date('Y-m-d H:i:s');
         }
+        if ($this->columnExists('responses_detailed', 'prompt_synced_at')) {
+            $sets[] = '`prompt_synced_at` = :prompt_synced_at';
+            $baseParams[':prompt_synced_at'] = date('Y-m-d H:i:s');
+        }
         if ($sets === []) {
             return;
         }
