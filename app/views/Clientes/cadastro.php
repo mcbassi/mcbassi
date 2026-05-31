@@ -135,9 +135,9 @@ window.addEventListener('unhandledrejection', function (event) {
 .cad-field select { width:100%; border:1.5px solid #d1d5db; border-radius:8px; padding:9px 12px; font-size:14px; outline:none; transition:.15s; background:#fff; }
 .cad-field input:focus,
 .cad-field select:focus { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.12); }
-.mp-iframe-wrap { border:1.5px solid #d1d5db; border-radius:8px; min-height:42px; display:flex; align-items:center; padding:0 12px; transition:.15s; background:#fff; }
+.mp-iframe-wrap { border:1.5px solid #d1d5db; border-radius:8px; height:39px; display:flex; align-items:center; padding:0 12px; transition:.15s; background:#fff; overflow:hidden; }
 .mp-iframe-wrap.focused { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.12); }
-.mp-iframe-wrap > div { width:100%; min-height:40px; }
+.mp-iframe-wrap > div { width:100%; height:100%; }
 .cad-card-line { display:flex; align-items:flex-end; gap:10px; }
 .cad-card-line .cad-field { flex:1; }
 .cad-brand { min-width:94px; margin-bottom:14px; border:1px solid #d1d5db; border-radius:8px; min-height:42px; display:flex; align-items:center; justify-content:center; padding:6px 10px; color:#555; font-size:12px; font-weight:700; background:#f9fafb; }
@@ -222,7 +222,7 @@ window.addEventListener('unhandledrejection', function (event) {
                 </div>
                 <div class="cad-field">
                     <label>Telefone / WhatsApp</label>
-                    <input type="text" id="cad-tel" name="telefone" placeholder="(11) 99999-9999" maxlength="15" required value="<?= h($_POST['telefone'] ?? '') ?>">
+                    <input type="text" id="cad-tel" name="telefone" placeholder="+55 (11) 99999-9999" maxlength="22" required value="<?= h($_POST['telefone'] ?? '') ?>">
                 </div>
             </div>
         </div>
@@ -323,6 +323,7 @@ window.addEventListener('unhandledrejection', function (event) {
     const cardholderDocumentType = document.getElementById('cad-cardholder-document-type');
     const cardholderDocumentNumber = document.getElementById('cad-cardholder-document-number');
     const cardBrand = document.getElementById('cad-card-brand');
+    const phoneInput = document.getElementById('cad-tel');
 
     const describeMpError = window.CAD_MP_DESCRIBE_ERROR || function (error) {
         return error && error.message ? error.message : String(error || 'Erro desconhecido');
@@ -482,6 +483,7 @@ window.addEventListener('unhandledrejection', function (event) {
         const doc = currentDoc();
         countryValue.value = countrySelect.value;
         documentTypeValue.value = documentTypeSelect.value;
+        applyPhonePrefix(doc);
         document.getElementById('cad-document-label').textContent = doc.documento_nome + ' do cliente';
         documentNumber.placeholder = doc.placeholder || 'Numero do documento';
         documentNumber.maxLength = Number(doc.max_length || 20);
@@ -491,6 +493,46 @@ window.addEventListener('unhandledrejection', function (event) {
         });
         fillCardholderDocumentTypes();
         syncCardDocument();
+    }
+
+    function phonePrefix(doc) {
+        return String(doc.phone_prefix || '+55');
+    }
+
+    function nationalPhoneDigits(value, prefix) {
+        let digits = String(value || '').replace(/\D/g, '');
+        const prefixDigits = String(prefix || '').replace(/\D/g, '');
+        if (prefixDigits && digits.startsWith(prefixDigits)) {
+            digits = digits.slice(prefixDigits.length);
+        }
+        return digits.slice(0, 11);
+    }
+
+    function formatPhoneWithPrefix(value, doc) {
+        const prefix = phonePrefix(doc);
+        const national = nationalPhoneDigits(value, prefix);
+        if (national === '') {
+            return prefix + ' ';
+        }
+        if (national.length <= 2) {
+            return prefix + ' (' + national;
+        }
+        if (national.length <= 6) {
+            return prefix + ' (' + national.slice(0, 2) + ') ' + national.slice(2);
+        }
+        const local = national.slice(2);
+        const split = local.length <= 8 ? 4 : 5;
+        return prefix + ' (' + national.slice(0, 2) + ') ' + local.slice(0, split) + '-' + local.slice(split);
+    }
+
+    function applyPhonePrefix(doc) {
+        const prefix = phonePrefix(doc);
+        const current = phoneInput.value.trim();
+        if (current === '') {
+            phoneInput.value = prefix + ' ';
+            return;
+        }
+        phoneInput.value = formatPhoneWithPrefix(current, doc);
     }
 
     countrySelect.innerHTML = '';
@@ -550,12 +592,13 @@ window.addEventListener('unhandledrejection', function (event) {
     fillDocumentTypes(selectedTipo);
     syncCardholderMode();
 
-    document.getElementById('cad-tel').addEventListener('input', function () {
-        let v = this.value.replace(/\D/g, '').slice(0, 11);
-        v = v.length <= 10
-            ? v.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2')
-            : v.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2');
-        this.value = v;
+    phoneInput.addEventListener('focus', function () {
+        if (this.value.trim() === '') {
+            this.value = phonePrefix(currentDoc()) + ' ';
+        }
+    });
+    phoneInput.addEventListener('input', function () {
+        this.value = formatPhoneWithPrefix(this.value, currentDoc());
     });
 
     window.cadSelecionarPlano = function (card) {

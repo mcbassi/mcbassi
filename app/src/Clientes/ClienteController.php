@@ -72,7 +72,8 @@ final class ClienteController
         $paisCodigo = strtoupper(trim((string) ($this->request->input('pais_codigo') ?? '')));
         $documentoTipo = strtoupper(trim((string) ($this->request->input('documento_tipo') ?? '')));
         $documento = $this->normalizeDocumentNumber((string) ($this->request->input('documento_numero') ?? ($this->request->input('cpf') ?? '')));
-        $telefone  = preg_replace('/\D/', '', (string) ($this->request->input('telefone') ?? ''));
+        $telefoneRaw = trim((string) ($this->request->input('telefone') ?? ''));
+        $telefone  = preg_replace('/\D/', '', $telefoneRaw);
         $plano     = trim((string) ($this->request->input('plano')     ?? ''));
         $cardToken = trim((string) ($this->request->input('cardToken') ?? ''));
         $pmId      = trim((string) ($this->request->input('paymentMethodId') ?? ''));
@@ -89,6 +90,12 @@ final class ClienteController
         $documentoTipo = (string) $documentoConfig['documento_tipo'];
         $docType = (string) $documentoConfig['mp_identification_type'];
         $mpAmountMultiplier = (float) $documentoConfig['amount_multiplier'];
+        $phonePrefix = preg_replace('/\D/', '', (string) ($documentoConfig['phone_prefix'] ?? ''));
+        if ($phonePrefix !== '' && str_starts_with($telefone, $phonePrefix)) {
+            $telefoneNacional = substr($telefone, strlen($phonePrefix));
+        } else {
+            $telefoneNacional = $telefone;
+        }
         $cardholderSame = (string) ($this->request->input('cardholder_same') ?? '1') === '1';
         $cardholderDocumentoTipo = $cardholderSame
             ? $documentoTipo
@@ -107,7 +114,7 @@ final class ClienteController
         if ($documentError !== null) { $this->renderCadastro(null, $documentError); return; }
         $cardholderDocumentError = $this->validateDocumentNumber($cardholderDocType, $cardholderDocumento);
         if ($cardholderDocumentError !== null) { $this->renderCadastro(null, 'Documento do titular do cartao invalido: ' . $cardholderDocumentError); return; }
-        if (strlen($telefone) < 10) { $this->renderCadastro(null, 'Telefone inválido.'); return; }
+        if (strlen($telefoneNacional) < 7) { $this->renderCadastro(null, 'Telefone inválido.'); return; }
         if ($cardToken === '')    { $this->renderCadastro(null, 'Dados do cartão ausentes. Tente novamente.'); return; }
 
         $planos = [
@@ -138,7 +145,7 @@ final class ClienteController
             'first_name'     => $firstName,
             'last_name'      => $lastName,
             'identification' => ['type' => $docType, 'number' => $documento],
-            'phone'          => ['area_code' => substr($telefone, 0, 2), 'number' => substr($telefone, 2)],
+            'phone'          => ['area_code' => substr($telefoneNacional, 0, 2), 'number' => substr($telefoneNacional, 2)],
         ], $mpKey);
 
         if (isset($mpCustomer['error'])) {
@@ -261,7 +268,7 @@ final class ClienteController
             $stmt = $this->database->pdo()->query("
                 SELECT pais_codigo, pais_nome, documento_tipo, documento_nome,
                        mp_identification_type, placeholder, max_length,
-                       amount_multiplier, is_default
+                       phone_prefix, amount_multiplier, is_default
                 FROM pais_documentos
                 WHERE ativo = 1
                 ORDER BY pais_nome, is_default DESC, documento_nome
@@ -278,6 +285,7 @@ final class ClienteController
                     'mp_identification_type' => 'CPF',
                     'placeholder' => '000.000.000-00',
                     'max_length' => 14,
+                    'phone_prefix' => '+55',
                     'amount_multiplier' => 1,
                     'is_default' => 1,
                 ],
@@ -289,6 +297,7 @@ final class ClienteController
                     'mp_identification_type' => 'CC',
                     'placeholder' => 'Numero de cedula',
                     'max_length' => 20,
+                    'phone_prefix' => '+57',
                     'amount_multiplier' => 100,
                     'is_default' => 1,
                 ],
