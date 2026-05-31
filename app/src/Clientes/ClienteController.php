@@ -219,7 +219,8 @@ final class ClienteController
                     mp_issuer_id = VALUES(mp_issuer_id),
                     status = 'ativo',
                     proximo_vencimento = DATE_ADD(NOW(), INTERVAL 1 MONTH),
-                    updated_at = NOW()
+                    updated_at = NOW(),
+                    id = LAST_INSERT_ID(id)
             ");
             $stmt->execute([
                 ':nome'     => $nome,
@@ -235,6 +236,16 @@ final class ClienteController
                 ':pm_id'    => $pmId,
                 ':issuer'   => $issuer ?: null,
             ]);
+            $clienteId = (int) $pdo->lastInsertId();
+            $this->ensurePaymentSchedule(
+                $pdo,
+                $clienteId,
+                (float) $planoInfo['valor'],
+                (string) ($pagamento['id'] ?? ('mp-sem-id-' . $clienteId . '-' . time())),
+                (string) ($pagamento['status'] ?? 'approved'),
+                (string) ($pagamento['status_detail'] ?? ''),
+                "Assinatura {$planoInfo['nome']} - {$nome}"
+            );
         } catch (\Throwable $e) {
             $this->renderCadastro(null, 'Erro ao salvar no banco: ' . $e->getMessage());
             return;
@@ -342,6 +353,82 @@ final class ClienteController
     private function normalizeDocumentNumber(string $documento): string
     {
         return strtoupper(preg_replace('/[^\dA-Za-z]/', '', $documento) ?? '');
+    }
+
+    private function ensurePaymentSchedule(
+        \PDO $pdo,
+        int $clienteId,
+        float $valor,
+        string $initialPaymentId,
+        string $initialStatus,
+        string $statusDetail,
+        string $descricao
+    ): void {
+        $approvedAt = in_array($initialStatus, ['approved', 'pending', 'in_process'], true) ? date('Y-m-d H:i:s') : null;
+
+        $this->insertPaymentIfMissing(
+            $pdo,
+            $clienteId,
+            $initialPaymentId,
+            $valor,
+            $initialStatus,
+            $statusDetail,
+            $descricao . ' - Mes 1/12',
+            date('Y-m-d H:i:s'),
+            $approvedAt
+        );
+
+        $baseDate = new \DateTimeImmutable(date('Y-m-d'));
+        for ($month = 2; $month <= 12; $month++) {
+            $chargeDate = $baseDate->modify('+' . ($month - 1) . ' months')->setTime(0, 0, 0);
+            $this->insertPaymentIfMissing(
+                $pdo,
+                $clienteId,
+                sprintf('scheduled-%d-%02d-%s', $clienteId, $month, $chargeDate->format('Ym')),
+                $valor,
+                'scheduled',
+                'scheduled',
+                $descricao . sprintf(' - Mes %d/12', $month),
+                $chargeDate->format('Y-m-d H:i:s'),
+                null
+            );
+        }
+    }
+
+    private function insertPaymentIfMissing(
+        \PDO $pdo,
+        int $clienteId,
+        string $mpPaymentId,
+        float $valor,
+        string $status,
+        ?string $statusDetail,
+        string $descricao,
+        string $dataCobranca,
+        ?string $dataAprovacao
+    ): void {
+        $stmt = $pdo->prepare("
+            INSERT INTO clientes_pagamentos
+                (cliente_id, mp_payment_id, valor, status, status_detail, descricao, data_cobranca, data_aprovacao)
+            VALUES
+                (:cliente_id, :mp_payment_id, :valor, :status, :status_detail, :descricao, :data_cobranca, :data_aprovacao)
+            ON DUPLICATE KEY UPDATE
+                valor = VALUES(valor),
+                status = VALUES(status),
+                status_detail = VALUES(status_detail),
+                descricao = VALUES(descricao),
+                data_cobranca = VALUES(data_cobranca),
+                data_aprovacao = VALUES(data_aprovacao)
+        ");
+        $stmt->execute([
+            ':cliente_id' => $clienteId,
+            ':mp_payment_id' => $mpPaymentId,
+            ':valor' => $valor,
+            ':status' => $status,
+            ':status_detail' => $statusDetail !== '' ? $statusDetail : null,
+            ':descricao' => $descricao,
+            ':data_cobranca' => $dataCobranca,
+            ':data_aprovacao' => $dataAprovacao,
+        ]);
     }
 
     private function validateDocumentNumber(string $type, string $number): ?string
