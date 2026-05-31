@@ -30,7 +30,11 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
 <?php endif; ?>
 
 <!-- SDK Mercado Pago (carregado aqui para não poluir o layout global) -->
-<script src="https://sdk.mercadopago.com/js/v2"></script>
+<div id="cad-mp-status" class="alert alert--warning" style="display:none;margin-bottom:20px">
+    Aguardando carregamento do Mercado Pago...
+</div>
+
+<script src="https://sdk.mercadopago.com/js/v2" onerror="window.CAD_MP_SDK_ERROR=true"></script>
 
 <style>
 /* ── Estilos escopados para esta tela ── */
@@ -179,6 +183,18 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
 
 <script>
 (function () {
+    const sdkStatus = document.getElementById('cad-mp-status');
+    function setSdkStatus(message, isError) {
+        if (!sdkStatus) return;
+        sdkStatus.style.display = message ? 'block' : 'none';
+        sdkStatus.className = 'alert ' + (isError ? 'alert--danger' : 'alert--warning');
+        sdkStatus.textContent = message || '';
+    }
+
+    if (window.CAD_MP_SDK_ERROR || typeof MercadoPago === 'undefined') {
+        setSdkStatus('SDK do Mercado Pago nao carregou. Verifique o acesso a https://sdk.mercadopago.com/js/v2 no navegador/Norton.', true);
+        return;
+    }
     // ── Inicializa SDK MP ─────────────────────────────────────────
     const mp = new MercadoPago('<?= h($mpPublicKey) ?>', { locale: 'pt-BR' });
 

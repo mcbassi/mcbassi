@@ -189,6 +189,7 @@ final class ClienteController
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => json_encode($body),
+            CURLOPT_PROXY          => '',
             CURLOPT_HTTPHEADER     => [
                 'Content-Type: application/json',
                 "Authorization: Bearer {$token}",
