@@ -150,7 +150,7 @@ final class ClienteController
             ];
         }
 
-        $pagamento = $this->mpPost('/v1/payments', $paymentPayload, $mpKey);
+        $pagamento = $this->mpPost('/v1/payments', $paymentPayload, $mpKey, $this->makeIdempotencyKey($email));
 
         $statusOk = ['approved', 'pending', 'in_process'];
         if (!in_array($pagamento['status'] ?? '', $statusOk, true)) {
@@ -212,18 +212,23 @@ final class ClienteController
     }
 
     /** @param array<string,mixed> $body */
-    private function mpPost(string $endpoint, array $body, string $token): array
+    private function mpPost(string $endpoint, array $body, string $token, ?string $idempotencyKey = null): array
     {
         $ch = curl_init("https://api.mercadopago.com{$endpoint}");
+        $headers = [
+            'Content-Type: application/json',
+            "Authorization: Bearer {$token}",
+        ];
+        if ($idempotencyKey !== null) {
+            $headers[] = "X-Idempotency-Key: {$idempotencyKey}";
+        }
+
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => json_encode($body),
             CURLOPT_PROXY          => '',
-            CURLOPT_HTTPHEADER     => [
-                'Content-Type: application/json',
-                "Authorization: Bearer {$token}",
-            ],
+            CURLOPT_HTTPHEADER     => $headers,
         ]);
         $raw = (string) curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -243,6 +248,11 @@ final class ClienteController
         }
 
         return $resp;
+    }
+
+    private function makeIdempotencyKey(string $email): string
+    {
+        return 'cliente-' . hash('sha256', $email . '|' . microtime(true) . '|' . random_int(100000, 999999));
     }
 
     private function mpGet(string $endpoint, string $token): array
