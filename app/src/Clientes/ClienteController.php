@@ -50,6 +50,7 @@ final class ClienteController
             'subtitle'     => 'Faturamento',
             'resultado'    => null,
             'erro'         => null,
+            'documentos'   => $this->loadDocumentOptions(),
         ]);
     }
 
@@ -68,20 +69,41 @@ final class ClienteController
         // Lê campos
         $nome      = trim((string) ($this->request->input('nome')      ?? ''));
         $email     = trim((string) ($this->request->input('email')     ?? ''));
-        $cpf       = preg_replace('/\D/', '', (string) ($this->request->input('cpf') ?? ''));
+        $paisCodigo = strtoupper(trim((string) ($this->request->input('pais_codigo') ?? '')));
+        $documentoTipo = strtoupper(trim((string) ($this->request->input('documento_tipo') ?? '')));
+        $documento = $this->normalizeDocumentNumber((string) ($this->request->input('documento_numero') ?? ($this->request->input('cpf') ?? '')));
         $telefone  = preg_replace('/\D/', '', (string) ($this->request->input('telefone') ?? ''));
         $plano     = trim((string) ($this->request->input('plano')     ?? ''));
         $cardToken = trim((string) ($this->request->input('cardToken') ?? ''));
         $pmId      = trim((string) ($this->request->input('paymentMethodId') ?? ''));
         $issuer    = trim((string) ($this->request->input('issuerId')  ?? ''));
-        $docType   = strtoupper(trim((string) Env::get('MP_IDENTIFICATION_TYPE', 'CPF')));
-        $mpAmountMultiplier = (float) Env::get('MP_AMOUNT_MULTIPLIER', $docType === 'CPF' ? '1' : '100');
+        $documentoConfig = $this->findDocumentConfig($paisCodigo, $documentoTipo);
+        if ($documentoConfig === null) {
+            $this->renderCadastro(null, 'Selecione um pais e tipo de documento valido.');
+            return;
+        }
+        $paisCodigo = (string) $documentoConfig['pais_codigo'];
+        $documentoTipo = (string) $documentoConfig['documento_tipo'];
+        $docType = (string) $documentoConfig['mp_identification_type'];
+        $mpAmountMultiplier = (float) $documentoConfig['amount_multiplier'];
+        $cardholderSame = (string) ($this->request->input('cardholder_same') ?? '1') === '1';
+        $cardholderDocumentoTipo = $cardholderSame
+            ? $documentoTipo
+            : strtoupper(trim((string) ($this->request->input('cardholder_documento_tipo') ?? $documentoTipo)));
+        $cardholderDocumento = $cardholderSame
+            ? $documento
+            : $this->normalizeDocumentNumber((string) ($this->request->input('cardholder_documento_numero') ?? ''));
+        $cardholderConfig = $this->findDocumentConfig($paisCodigo, $cardholderDocumentoTipo) ?? $documentoConfig;
+        $cardholderDocType = (string) $cardholderConfig['mp_identification_type'];
 
         // Validações
         if ($nome === '')         { $this->renderCadastro(null, 'Nome é obrigatório.'); return; }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { $this->renderCadastro(null, 'E-mail inválido.'); return; }
-        if ($docType === 'CPF' && strlen($cpf) !== 11)  { $this->renderCadastro(null, 'CPF invalido.'); return; }
-        if ($docType !== 'CPF' && strlen($cpf) < 4)  { $this->renderCadastro(null, 'Documento invalido.'); return; }
+        if ($documento === '')  { $this->renderCadastro(null, 'Documento invalido.'); return; }
+        $documentError = $this->validateDocumentNumber($docType, $documento);
+        if ($documentError !== null) { $this->renderCadastro(null, $documentError); return; }
+        $cardholderDocumentError = $this->validateDocumentNumber($cardholderDocType, $cardholderDocumento);
+        if ($cardholderDocumentError !== null) { $this->renderCadastro(null, 'Documento do titular do cartao invalido: ' . $cardholderDocumentError); return; }
         if (strlen($telefone) < 10) { $this->renderCadastro(null, 'Telefone inválido.'); return; }
         if ($cardToken === '')    { $this->renderCadastro(null, 'Dados do cartão ausentes. Tente novamente.'); return; }
 
@@ -112,7 +134,7 @@ final class ClienteController
             'email'          => $email,
             'first_name'     => $firstName,
             'last_name'      => $lastName,
-            'identification' => ['type' => $docType, 'number' => $cpf],
+            'identification' => ['type' => $docType, 'number' => $documento],
             'phone'          => ['area_code' => substr($telefone, 0, 2), 'number' => substr($telefone, 2)],
         ], $mpKey);
 
@@ -146,7 +168,7 @@ final class ClienteController
             $paymentPayload['token'] = $cardToken;
             $paymentPayload['payer'] = [
                 'email' => $email,
-                'identification' => ['type' => $docType, 'number' => $cpf],
+                'identification' => ['type' => $cardholderDocType, 'number' => $cardholderDocumento],
             ];
         }
 
@@ -166,19 +188,36 @@ final class ClienteController
             $pdo  = $this->database->pdo();
             $stmt = $pdo->prepare("
                 INSERT INTO clientes
-                    (nome, email, cpf, telefone, plano, valor_plano,
+                    (nome, email, cpf, telefone, pais_codigo, documento_tipo, plano, valor_plano,
                      mp_customer_id, mp_card_id, mp_payment_method_id, mp_issuer_id,
                      status, data_cadastro, proximo_vencimento)
                 VALUES
-                    (:nome, :email, :cpf, :telefone, :plano, :valor,
+                    (:nome, :email, :cpf, :telefone, :pais_codigo, :documento_tipo, :plano, :valor,
                      :mp_cid, :mp_card, :pm_id, :issuer,
                      'ativo', NOW(), DATE_ADD(NOW(), INTERVAL 1 MONTH))
+                ON DUPLICATE KEY UPDATE
+                    nome = VALUES(nome),
+                    cpf = VALUES(cpf),
+                    telefone = VALUES(telefone),
+                    pais_codigo = VALUES(pais_codigo),
+                    documento_tipo = VALUES(documento_tipo),
+                    plano = VALUES(plano),
+                    valor_plano = VALUES(valor_plano),
+                    mp_customer_id = VALUES(mp_customer_id),
+                    mp_card_id = VALUES(mp_card_id),
+                    mp_payment_method_id = VALUES(mp_payment_method_id),
+                    mp_issuer_id = VALUES(mp_issuer_id),
+                    status = 'ativo',
+                    proximo_vencimento = DATE_ADD(NOW(), INTERVAL 1 MONTH),
+                    updated_at = NOW()
             ");
             $stmt->execute([
                 ':nome'     => $nome,
                 ':email'    => $email,
-                ':cpf'      => $cpf,
+                ':cpf'      => $documento,
                 ':telefone' => $telefone,
+                ':pais_codigo' => $paisCodigo,
+                ':documento_tipo' => $documentoTipo,
                 ':plano'    => $plano,
                 ':valor'    => $planoInfo['valor'],
                 ':mp_cid'   => $mpCustomer['id'],
@@ -208,7 +247,136 @@ final class ClienteController
             'subtitle'     => 'Faturamento',
             'resultado'    => $resultado,
             'erro'         => $erro,
+            'documentos'   => $this->loadDocumentOptions(),
         ]);
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    private function loadDocumentOptions(): array
+    {
+        try {
+            $stmt = $this->database->pdo()->query("
+                SELECT pais_codigo, pais_nome, documento_tipo, documento_nome,
+                       mp_identification_type, placeholder, max_length,
+                       amount_multiplier, is_default
+                FROM pais_documentos
+                WHERE ativo = 1
+                ORDER BY pais_nome, is_default DESC, documento_nome
+            ");
+            $rows = $stmt->fetchAll();
+            return is_array($rows) ? $rows : [];
+        } catch (\Throwable) {
+            return [
+                [
+                    'pais_codigo' => 'BR',
+                    'pais_nome' => 'Brasil',
+                    'documento_tipo' => 'CPF',
+                    'documento_nome' => 'CPF',
+                    'mp_identification_type' => 'CPF',
+                    'placeholder' => '000.000.000-00',
+                    'max_length' => 14,
+                    'amount_multiplier' => 1,
+                    'is_default' => 1,
+                ],
+                [
+                    'pais_codigo' => 'CO',
+                    'pais_nome' => 'Colombia',
+                    'documento_tipo' => 'CC',
+                    'documento_nome' => 'Cedula de Ciudadania',
+                    'mp_identification_type' => 'CC',
+                    'placeholder' => 'Numero de cedula',
+                    'max_length' => 20,
+                    'amount_multiplier' => 100,
+                    'is_default' => 1,
+                ],
+            ];
+        }
+    }
+
+    private function findDocumentConfig(string $paisCodigo, string $documentoTipo): ?array
+    {
+        $paisCodigo = strtoupper(trim($paisCodigo));
+        $documentoTipo = strtoupper(trim($documentoTipo));
+        foreach ($this->loadDocumentOptions() as $documento) {
+            if (
+                strtoupper((string) $documento['pais_codigo']) === $paisCodigo
+                && strtoupper((string) $documento['documento_tipo']) === $documentoTipo
+            ) {
+                return $documento;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeDocumentNumber(string $documento): string
+    {
+        return strtoupper(preg_replace('/[^\dA-Za-z]/', '', $documento) ?? '');
+    }
+
+    private function validateDocumentNumber(string $type, string $number): ?string
+    {
+        $type = strtoupper($type);
+        if ($number === '') {
+            return 'Documento invalido.';
+        }
+
+        return match ($type) {
+            'CPF' => $this->isValidCpf($number) ? null : 'CPF invalido.',
+            'CNPJ' => $this->isValidCnpj($number) ? null : 'CNPJ invalido.',
+            'CC' => preg_match('/^\d{5,12}$/', $number) === 1 ? null : 'Cedula de Ciudadania deve ter de 5 a 12 digitos.',
+            'NIT' => preg_match('/^\d{8,15}$/', $number) === 1 ? null : 'NIT deve ter de 8 a 15 digitos.',
+            'CE' => preg_match('/^[A-Z0-9]{5,12}$/', $number) === 1 ? null : 'Cedula de Extranjeria deve ter de 5 a 12 caracteres.',
+            'TI' => preg_match('/^\d{5,12}$/', $number) === 1 ? null : 'Tarjeta de Identidad deve ter de 5 a 12 digitos.',
+            'PAS' => preg_match('/^[A-Z0-9]{5,20}$/', $number) === 1 ? null : 'Passaporte deve ter de 5 a 20 caracteres.',
+            default => strlen($number) >= 4 ? null : 'Documento deve ter ao menos 4 caracteres.',
+        };
+    }
+
+    private function isValidCpf(string $cpf): bool
+    {
+        if (!preg_match('/^\d{11}$/', $cpf) || preg_match('/^(\d)\1{10}$/', $cpf)) {
+            return false;
+        }
+
+        for ($t = 9; $t < 11; $t++) {
+            $sum = 0;
+            for ($i = 0; $i < $t; $i++) {
+                $sum += (int) $cpf[$i] * (($t + 1) - $i);
+            }
+            $digit = ((10 * $sum) % 11) % 10;
+            if ((int) $cpf[$t] !== $digit) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isValidCnpj(string $cnpj): bool
+    {
+        if (!preg_match('/^\d{14}$/', $cnpj) || preg_match('/^(\d)\1{13}$/', $cnpj)) {
+            return false;
+        }
+
+        $weights = [
+            [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2],
+            [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2],
+        ];
+
+        for ($digitIndex = 12; $digitIndex <= 13; $digitIndex++) {
+            $sum = 0;
+            foreach ($weights[$digitIndex - 12] as $i => $weight) {
+                $sum += (int) $cnpj[$i] * $weight;
+            }
+            $rest = $sum % 11;
+            $digit = $rest < 2 ? 0 : 11 - $rest;
+            if ((int) $cnpj[$digitIndex] !== $digit) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** @param array<string,mixed> $body */
