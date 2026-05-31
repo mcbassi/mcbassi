@@ -59,21 +59,21 @@ final class ClienteController
         $this->auth->requireAuth();
 
         // CSRF
-        $token = (string) ($this->request->post('_csrf') ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+        $token = (string) ($this->request->input('_csrf') ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
         if (!check_csrf($token)) {
             $this->renderCadastro(null, 'Token de segurança inválido. Recarregue a página.');
             return;
         }
 
         // Lê campos
-        $nome      = trim((string) ($this->request->post('nome')      ?? ''));
-        $email     = trim((string) ($this->request->post('email')     ?? ''));
-        $cpf       = preg_replace('/\D/', '', (string) ($this->request->post('cpf') ?? ''));
-        $telefone  = preg_replace('/\D/', '', (string) ($this->request->post('telefone') ?? ''));
-        $plano     = trim((string) ($this->request->post('plano')     ?? ''));
-        $cardToken = trim((string) ($this->request->post('cardToken') ?? ''));
-        $pmId      = trim((string) ($this->request->post('paymentMethodId') ?? ''));
-        $issuer    = trim((string) ($this->request->post('issuerId')  ?? ''));
+        $nome      = trim((string) ($this->request->input('nome')      ?? ''));
+        $email     = trim((string) ($this->request->input('email')     ?? ''));
+        $cpf       = preg_replace('/\D/', '', (string) ($this->request->input('cpf') ?? ''));
+        $telefone  = preg_replace('/\D/', '', (string) ($this->request->input('telefone') ?? ''));
+        $plano     = trim((string) ($this->request->input('plano')     ?? ''));
+        $cardToken = trim((string) ($this->request->input('cardToken') ?? ''));
+        $pmId      = trim((string) ($this->request->input('paymentMethodId') ?? ''));
+        $issuer    = trim((string) ($this->request->input('issuerId')  ?? ''));
 
         // Validações
         if ($nome === '')         { $this->renderCadastro(null, 'Nome é obrigatório.'); return; }
