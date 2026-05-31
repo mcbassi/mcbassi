@@ -101,10 +101,17 @@ final class ClienteController
             return;
         }
 
+        $nomePartes = preg_split('/\s+/', $nome, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $firstName = $nomePartes[0] ?? $nome;
+        $lastName = trim(implode(' ', array_slice($nomePartes, 1)));
+        if (mb_strlen($lastName) < 2) {
+            $lastName = 'Cliente';
+        }
+
         $mpCustomer = $this->mpPost('/v1/customers', [
             'email'          => $email,
-            'first_name'     => explode(' ', $nome)[0],
-            'last_name'      => implode(' ', array_slice(explode(' ', $nome), 1)) ?: '-',
+            'first_name'     => $firstName,
+            'last_name'      => $lastName,
             'identification' => ['type' => $docType, 'number' => $cpf],
             'phone'          => ['area_code' => substr($telefone, 0, 2), 'number' => substr($telefone, 2)],
         ], $mpKey);
