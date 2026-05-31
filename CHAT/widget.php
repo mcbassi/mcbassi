@@ -12,14 +12,13 @@ $chatProcessUrl = $projectBase . '/CHAT/process.php';
 ?>
 
 <link rel="stylesheet" href="<?= htmlspecialchars($chatCssUrl, ENT_QUOTES, 'UTF-8') ?>">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
 <script>
 window.CHAT_PROCESS_URL = <?= json_encode($chatProcessUrl, JSON_UNESCAPED_SLASHES) ?>;
 </script>
 
 <div id="chat-widget-button" onclick="toggleChat()">
-    <i class="fa-solid fa-comment-dots"></i>
+    <span aria-hidden="true">Chat</span>
 </div>
 
 <div id="chat-window" class="hidden" style="display:none;">
@@ -33,10 +32,10 @@ window.CHAT_PROCESS_URL = <?= json_encode($chatProcessUrl, JSON_UNESCAPED_SLASHE
     <div id="chat-input-area">
         <input type="text" id="user-input" placeholder="Digite ou fale...">
         <button id="btn-voice" type="button" onclick="startVoice()">
-            <i class="fa-solid fa-microphone"></i>
+            Voz
         </button>
         <button id="btn-send" type="button" onclick="sendMessage()">
-            <i class="fa-solid fa-paper-plane"></i>
+            Enviar
         </button>
     </div>
 </div>

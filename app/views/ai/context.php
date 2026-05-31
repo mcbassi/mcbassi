@@ -479,11 +479,11 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
                                                    class="mini-edit-btn"
                                                    href="<?= h($editHref) ?>">Edit</a>
                                             <?php endif; ?>
-                                            <pre class="analitica-pre"><?= h((string) ($prompt['prompt_full_text'] ?? $prompt['prompt'] ?? '')) ?></pre>
+                                            <pre class="analitica-pre" data-no-i18n><?= h((string) ($prompt['prompt_full_text'] ?? $prompt['prompt'] ?? '')) ?></pre>
                                         </div>
                                     </td>
                                     <td>
-                                        <pre class="analitica-pre"><?= h((string) ($runtime['resolved_prompt'] ?? '')) ?></pre>
+                                        <pre class="analitica-pre" data-no-i18n><?= h((string) ($runtime['resolved_prompt'] ?? '')) ?></pre>
                                     </td>
                                     <td>
                                         <?php if ($attachments === []): ?>
@@ -523,7 +523,7 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
                                             <?php elseif ($hasIaResult && $isStored): ?>
                                                 <div class="analitica-result-meta analitica-result-meta--stored">Resultado salvo anteriormente</div>
                                             <?php endif; ?>
-                                            <div class="analitica-result-body"><?= $resultHtml ?></div>
+                                            <div class="analitica-result-body" data-no-i18n><?= $resultHtml ?></div>
                                         </div>
                                     </td>
                                 </tr>
@@ -588,6 +588,7 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
     border-collapse: collapse;
 }
 .analitica-table th,.analitica-table td{padding:3px 4px;vertical-align:top;}
+.analitica-table tbody tr[data-question-name]{content-visibility:auto;contain-intrinsic-size:180px;}
 .analitica-row--done{background:#f2fbf3;}
 .analitica-row--done:hover{background:#edf8ee;}
 .analitica-row--stale{background:#fff9e8;}
@@ -596,6 +597,7 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
 .analitica-result-cell{vertical-align:top;max-width:0;}
 .analitica-prompt-cell .mini-edit-btn{margin-bottom:6px;}
 .analitica-result-card{max-height:14rem;background:#fff;border:1px solid #e8ecef;border-radius:10px;padding:.55rem .65rem;box-shadow:inset 0 1px 0 rgba(255,255,255,.8);overflow:hidden;display:flex;flex-direction:column;min-width:0;width:100%;box-sizing:border-box;}
+.analitica-pre,.analitica-result-card{content-visibility:auto;contain-intrinsic-size:120px;}
 .analitica-row--done .analitica-result-card{border-color:#d5ead8;background:#fcfffc;}
 .analitica-result-body{color:#1f2937;line-height:1.45;font-size:.9rem;max-height:11.5rem;overflow:auto;padding-right:.2rem;min-width:0;width:100%;box-sizing:border-box;white-space:normal;word-break:break-word;overflow-wrap:anywhere;}
 .analitica-result-body *{max-width:100%;box-sizing:border-box;}
