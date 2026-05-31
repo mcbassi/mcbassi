@@ -74,6 +74,7 @@ final class ClienteController
         $cardToken = trim((string) ($this->request->input('cardToken') ?? ''));
         $pmId      = trim((string) ($this->request->input('paymentMethodId') ?? ''));
         $issuer    = trim((string) ($this->request->input('issuerId')  ?? ''));
+        $docType   = strtoupper(trim((string) Env::get('MP_IDENTIFICATION_TYPE', 'CPF')));
 
         // Validações
         if ($nome === '')         { $this->renderCadastro(null, 'Nome é obrigatório.'); return; }
@@ -101,18 +102,18 @@ final class ClienteController
             'email'          => $email,
             'first_name'     => explode(' ', $nome)[0],
             'last_name'      => implode(' ', array_slice(explode(' ', $nome), 1)) ?: '-',
-            'identification' => ['type' => 'CPF', 'number' => $cpf],
+            'identification' => ['type' => $docType, 'number' => $cpf],
             'phone'          => ['area_code' => substr($telefone, 0, 2), 'number' => substr($telefone, 2)],
         ], $mpKey);
 
         if (isset($mpCustomer['error'])) {
-            $this->renderCadastro(null, 'Erro ao criar cliente no Mercado Pago: ' . ($mpCustomer['message'] ?? ''));
+            $this->renderCadastro(null, 'Erro ao criar cliente no Mercado Pago: ' . $this->formatMpError($mpCustomer));
             return;
         }
 
         $mpCard = $this->mpPost("/v1/customers/{$mpCustomer['id']}/cards", ['token' => $cardToken], $mpKey);
         if (isset($mpCard['error'])) {
-            $this->renderCadastro(null, 'Erro ao salvar cartão: ' . ($mpCard['message'] ?? ''));
+            $this->renderCadastro(null, 'Erro ao salvar cartao: ' . $this->formatMpError($mpCard));
             return;
         }
 
@@ -127,7 +128,10 @@ final class ClienteController
 
         $statusOk = ['approved', 'pending', 'in_process'];
         if (!in_array($pagamento['status'] ?? '', $statusOk, true)) {
-            $this->renderCadastro(null, 'Pagamento não aprovado: ' . ($pagamento['status_detail'] ?? 'Erro desconhecido'));
+            $msg = isset($pagamento['error'])
+                ? $this->formatMpError($pagamento)
+                : ($pagamento['status_detail'] ?? ($pagamento['message'] ?? 'Erro desconhecido'));
+            $this->renderCadastro(null, 'Pagamento nao aprovado: ' . $msg);
             return;
         }
 
@@ -195,9 +199,50 @@ final class ClienteController
                 "Authorization: Bearer {$token}",
             ],
         ]);
-        $resp = json_decode((string) curl_exec($ch), true);
+        $raw = (string) curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
-        return is_array($resp) ? $resp : ['error' => true, 'message' => 'Sem resposta da API'];
+        $resp = json_decode($raw, true);
+        if (!is_array($resp)) {
+            return [
+                'error' => true,
+                'status' => $httpCode,
+                'message' => $curlError !== '' ? $curlError : 'Sem resposta da API',
+            ];
+        }
+
+        if ($httpCode >= 400 && !isset($resp['status'])) {
+            $resp['status'] = $httpCode;
+        }
+
+        return $resp;
+    }
+
+    /** @param array<string,mixed> $error */
+    private function formatMpError(array $error): string
+    {
+        $parts = [];
+        if (isset($error['message']) && $error['message'] !== '') {
+            $parts[] = (string) $error['message'];
+        }
+        if (isset($error['status'])) {
+            $parts[] = 'HTTP ' . (string) $error['status'];
+        }
+        if (isset($error['cause']) && is_array($error['cause'])) {
+            foreach ($error['cause'] as $cause) {
+                if (!is_array($cause)) {
+                    continue;
+                }
+                $description = (string) ($cause['description'] ?? '');
+                $code = (string) ($cause['code'] ?? '');
+                if ($description !== '') {
+                    $parts[] = $code !== '' ? "{$description} ({$code})" : $description;
+                }
+            }
+        }
+
+        return implode(' - ', array_unique($parts)) ?: 'Erro desconhecido.';
     }
 
     private function mercadoPagoAccessToken(): string
