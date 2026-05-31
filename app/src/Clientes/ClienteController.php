@@ -122,19 +122,27 @@ final class ClienteController
         }
 
         $mpCard = $this->mpPost("/v1/customers/{$mpCustomer['id']}/cards", ['token' => $cardToken], $mpKey);
-        if (isset($mpCard['error'])) {
-            $this->renderCadastro(null, 'Erro ao salvar cartao: ' . $this->formatMpError($mpCard));
-            return;
-        }
+        $cardSaved = !isset($mpCard['error']);
 
-        $pagamento = $this->mpPost('/v1/payments', [
+        $paymentPayload = [
             'transaction_amount' => $mpTransactionAmount,
             'description'        => "Assinatura {$planoInfo['nome']} - {$nome}",
             'payment_method_id'  => $pmId,
             'issuer_id'          => $issuer ?: null,
             'installments'       => 1,
-            'payer'              => ['type' => 'customer', 'id' => $mpCustomer['id']],
-        ], $mpKey);
+        ];
+
+        if ($cardSaved) {
+            $paymentPayload['payer'] = ['type' => 'customer', 'id' => $mpCustomer['id']];
+        } else {
+            $paymentPayload['token'] = $cardToken;
+            $paymentPayload['payer'] = [
+                'email' => $email,
+                'identification' => ['type' => $docType, 'number' => $cpf],
+            ];
+        }
+
+        $pagamento = $this->mpPost('/v1/payments', $paymentPayload, $mpKey);
 
         $statusOk = ['approved', 'pending', 'in_process'];
         if (!in_array($pagamento['status'] ?? '', $statusOk, true)) {
@@ -166,7 +174,7 @@ final class ClienteController
                 ':plano'    => $plano,
                 ':valor'    => $planoInfo['valor'],
                 ':mp_cid'   => $mpCustomer['id'],
-                ':mp_card'  => $mpCard['id'],
+                ':mp_card'  => $cardSaved ? $mpCard['id'] : (string) ($pagamento['card']['id'] ?? 'token_payment'),
                 ':pm_id'    => $pmId,
                 ':issuer'   => $issuer ?: null,
             ]);
