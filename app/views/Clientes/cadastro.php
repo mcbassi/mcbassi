@@ -166,6 +166,7 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
 
             <div class="cad-field">
                 <label>CPF do titular do cartão</label>
+                <input type="hidden" id="cad-docType" value="CPF">
                 <input type="text" id="cad-docNumber" placeholder="000.000.000-00" maxlength="14" autocomplete="off">
             </div>
 
@@ -196,9 +197,11 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
         return;
     }
     // ── Inicializa SDK MP ─────────────────────────────────────────
-    const mp = new MercadoPago('<?= h($mpPublicKey) ?>', { locale: 'pt-BR' });
+    let cardForm;
+    try {
+        const mp = new MercadoPago('<?= h($mpPublicKey) ?>', { locale: 'pt-BR' });
 
-    const cardForm = mp.cardForm({
+        cardForm = mp.cardForm({
         amount: '99.90',
         iframe: true,
         form: {
@@ -211,7 +214,14 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
             identificationType:   { id: 'cad-docType' },
         },
         callbacks: {
-            onFormMounted: err => { if (err) console.error('MP mount:', err); },
+            onFormMounted: err => {
+                if (err) {
+                    console.error('MP mount:', err);
+                    setSdkStatus('Erro ao montar campos do Mercado Pago: ' + (err.message || JSON.stringify(err)), true);
+                    return;
+                }
+                setSdkStatus('', false);
+            },
             onSubmit: async event => {
                 event.preventDefault();
 
@@ -220,18 +230,16 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
                 btn.disabled = true;
 
                 try {
-                    const tokenResp = await mp.createCardToken({
-                        cardholderName:      document.getElementById('cad-cardHolder').value,
-                        identificationType:  'CPF',
-                        identificationNumber: document.getElementById('cad-docNumber').value.replace(/\D/g, ''),
-                    });
+                    const formData = cardForm.getCardFormData();
 
-                    const { paymentMethodId, issuerId, numberOfInstallments } = cardForm.getCardFormData();
+                    document.getElementById('cad-token').value  = formData.token || '';
+                    document.getElementById('cad-pmid').value   = formData.paymentMethodId || '';
+                    document.getElementById('cad-issuer').value = formData.issuerId || '';
+                    document.getElementById('cad-inst').value   = formData.installments || formData.numberOfInstallments || 1;
 
-                    document.getElementById('cad-token').value  = tokenResp.id;
-                    document.getElementById('cad-pmid').value   = paymentMethodId  || '';
-                    document.getElementById('cad-issuer').value = issuerId         || '';
-                    document.getElementById('cad-inst').value   = numberOfInstallments || 1;
+                    if (!document.getElementById('cad-token').value) {
+                        throw new Error('Mercado Pago nÃ£o gerou token do cartÃ£o. Confira os dados informados.');
+                    }
 
                     document.getElementById('cad-form').submit();
                 } catch (e) {
@@ -241,7 +249,12 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
                 }
             },
         },
-    });
+        });
+    } catch (error) {
+        console.error('MP init:', error);
+        setSdkStatus('Erro ao inicializar Mercado Pago: ' + (error.message || String(error)), true);
+        return;
+    }
 
     // ── Seleção de plano ──────────────────────────────────────────
     window.cadSelecionarPlano = function (card) {
