@@ -15,6 +15,10 @@ $versions = is_array($versions ?? null) ? $versions : [];
 $selectedVersionId = (int) ($selectedVersionId ?? 0);
 $onlyWithPrompt = !empty($onlyWithPrompt);
 $storedResponses = is_array($storedResponses ?? null) ? $storedResponses : [];
+$showAllRows = ((string) ($_GET['show_all'] ?? '0')) === '1';
+$initialRowLimit = 60;
+$visibleItems = $showAllRows ? $items : array_slice($items, 0, $initialRowLimit);
+$hiddenItemCount = max(0, count($items) - count($visibleItems));
 
 $getItemPromptCode = static function (array $item): string {
     $prompt = is_array($item['prompt'] ?? null) ? $item['prompt'] : [];
@@ -34,6 +38,18 @@ $getItemPromptCode = static function (array $item): string {
     }
 
     return '';
+};
+
+$previewText = static function (string $text, int $limit = 700): string {
+    $text = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+    if ($text === '') {
+        return '';
+    }
+    if (mb_strlen($text) <= $limit) {
+        return $text;
+    }
+
+    return rtrim(mb_substr($text, 0, $limit)) . '...';
 };
 
 $promptFilterOptions = [];
@@ -67,6 +83,14 @@ foreach ($executionResults as $result) {
 
 $postTarget = url(trim($context) . '/index.php');
 $getTarget = url(trim($context) . '/index.php');
+$showAllHref = $getTarget;
+if ($selectedVersionId > 0) {
+    $showAllHref .= '?version=' . $selectedVersionId;
+    if ($companyName !== '') {
+        $showAllHref .= '&company=' . rawurlencode($companyName);
+    }
+    $showAllHref .= '&only_with_prompt=' . ($onlyWithPrompt ? '1' : '0') . '&show_all=1';
+}
 $renderIaInline = static function (string $text): string {
     $text = h($text);
     $text = preg_replace('/\*\*([^*]+)\*\*/u', '<strong>$1</strong>', $text) ?? $text;
@@ -294,7 +318,7 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
 
 
 
-<article class="module-card analitica-legacy-card">
+<article class="module-card analitica-legacy-card" data-shell-no-auto-i18n>
     <div class="analitica-legacy-title"><?= h($label === '' ? 'IA Analítica' : $label) ?></div>
 
     <?php if ($executionError !== ''): ?>
@@ -392,6 +416,9 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
                         <button type="button" id="btn-prepare-analitica-session" class="action-pill action-pill--outline"><?= h(t('analitica.prepare_session')) ?></button>
                         <button type="button" id="btn-save-analitica-questions" class="action-pill action-pill--outline"><?= h(t('analitica.save_questions')) ?></button>
                         <button type="button" id="btn-save-analitica-final" class="action-pill action-pill--outline"><?= h(t('analitica.save_integral_report')) ?></button>
+                        <?php if ($hiddenItemCount > 0 && $showAllHref !== $getTarget): ?>
+                            <a class="action-pill action-pill--ghost" href="<?= h($showAllHref) ?>">Carregar todos (<?= count($items) ?>)</a>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </div>
@@ -417,7 +444,7 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
                         <?php if ($items === []): ?>
                             <tr><td colspan="8" class="empty-table">Nenhum prompt encontrado para a sessão selecionada.</td></tr>
                         <?php else: ?>
-                            <?php foreach ($items as $index => $item): ?>
+                            <?php foreach ($visibleItems as $index => $item): ?>
                                 <?php
                                 $prompt = is_array($item['prompt'] ?? null) ? $item['prompt'] : [];
                                 $field = is_array($item['field'] ?? null) ? $item['field'] : [];
@@ -438,6 +465,7 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
                                 $hasIaResult = is_array($effectiveResult) && trim((string) ($effectiveResult['response_text'] ?? '')) !== '';
                                 $resultText = $hasIaResult ? trim((string) ($effectiveResult['response_text'] ?? '')) : '';
                                 $resultHtml = $formatIaResult($resultText);
+                                $resultPreview = $hasIaResult ? $previewText($resultText, 850) : '';
                                 $isStored = is_array($effectiveResult) && (string) ($effectiveResult['source'] ?? '') === 'stored';
                                 $promptUpdatedAt = trim((string) ($prompt['updated_at'] ?? ''));
                                 $executedAt = is_array($effectiveResult)
@@ -479,11 +507,13 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
                                                    class="mini-edit-btn"
                                                    href="<?= h($editHref) ?>">Edit</a>
                                             <?php endif; ?>
-                                            <pre class="analitica-pre" data-no-i18n><?= h((string) ($prompt['prompt_full_text'] ?? $prompt['prompt'] ?? '')) ?></pre>
+                                            <?php $promptOriginalPreview = $previewText((string) ($prompt['prompt_full_text'] ?? $prompt['prompt'] ?? '')); ?>
+                                            <pre class="analitica-pre" data-no-i18n><?= h($promptOriginalPreview !== '' ? $promptOriginalPreview : 'Sem prompt') ?></pre>
                                         </div>
                                     </td>
                                     <td>
-                                        <pre class="analitica-pre" data-no-i18n><?= h((string) ($runtime['resolved_prompt'] ?? '')) ?></pre>
+                                        <?php $resolvedPromptPreview = $previewText((string) ($runtime['resolved_prompt'] ?? '')); ?>
+                                        <pre class="analitica-pre" data-no-i18n><?= h($resolvedPromptPreview !== '' ? $resolvedPromptPreview : 'Sem prompt resolvido') ?></pre>
                                     </td>
                                     <td>
                                         <?php if ($attachments === []): ?>
@@ -507,7 +537,8 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
                                             <?php if (trim((string) ($sql['desc'] ?? '')) !== ''): ?>
                                                 <div class="table-subtext"><?= h((string) ($sql['desc'] ?? '')) ?></div>
                                             <?php endif; ?>
-                                            <pre class="analitica-sql-pre"><?= h((string) ($sql['sql_text'] ?? '')) ?></pre>
+                                            <?php $sqlPreview = $previewText((string) ($sql['sql_text'] ?? ''), 450); ?>
+                                            <pre class="analitica-sql-pre" data-no-i18n><?= h($sqlPreview) ?></pre>
                                         <?php else: ?>
                                             <span class="table-subtext">Sem SQL</span>
                                         <?php endif; ?>
@@ -523,11 +554,28 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
                                             <?php elseif ($hasIaResult && $isStored): ?>
                                                 <div class="analitica-result-meta analitica-result-meta--stored">Resultado salvo anteriormente</div>
                                             <?php endif; ?>
-                                            <div class="analitica-result-body" data-no-i18n><?= $resultHtml ?></div>
+                                            <div class="analitica-result-body" data-no-i18n>
+                                                <?php if ($resultPreview !== ''): ?>
+                                                    <div class="analitica-result-html"><p><?= h($resultPreview) ?></p></div>
+                                                <?php else: ?>
+                                                    <span class="analitica-result-placeholder">Aguardando execuÃ§Ã£o</span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <?php if ($hasIaResult): ?>
+                                                <template class="analitica-result-full-template"><?= $resultHtml ?></template>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
+                            <?php if ($hiddenItemCount > 0): ?>
+                                <tr>
+                                    <td colspan="8" class="empty-table">
+                                        Mostrando <?= count($visibleItems) ?> de <?= count($items) ?> itens para acelerar o carregamento inicial.
+                                        <a href="<?= h($showAllHref) ?>">Carregar todos</a>.
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -910,7 +958,7 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
         const questionName = (row.getAttribute('data-question-name') || '').trim();
         const questionLabel = (row.getAttribute('data-question-label') || '').trim();
         const promptAssistente = (row.getAttribute('data-prompt-assistente') || '').trim();
-        const resultHtml = row.querySelector('.analitica-result-body')?.innerHTML || '<p>Sem conteúdo.</p>';
+        const resultHtml = row.querySelector('.analitica-result-full-template')?.innerHTML || row.querySelector('.analitica-result-body')?.innerHTML || '<p>Sem conteúdo.</p>';
 
         return `
             <section>
@@ -930,7 +978,7 @@ $formatIaResult = static function (string $text) use ($renderIaInline, $parseIaT
             const questionName = (row.getAttribute('data-question-name') || '').trim();
             const questionLabel = (row.getAttribute('data-question-label') || '').trim();
             const promptAssistente = (row.getAttribute('data-prompt-assistente') || '').trim();
-            const resultHtml = row.querySelector('.analitica-result-body')?.innerHTML || '<p>Sem conteúdo.</p>';
+            const resultHtml = row.querySelector('.analitica-result-full-template')?.innerHTML || row.querySelector('.analitica-result-body')?.innerHTML || '<p>Sem conteúdo.</p>';
 
             return `
                 <section style="margin-bottom:22px;">

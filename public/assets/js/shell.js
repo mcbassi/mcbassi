@@ -401,7 +401,9 @@
     }
 
     function refreshTranslations() {
-        translateLoadedContent(shellContent);
+        if (!shellContent.querySelector('[data-shell-no-auto-i18n]')) {
+            translateLoadedContent(shellContent);
+        }
         translateGlobalWidgets();
     }
 
