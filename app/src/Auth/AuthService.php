@@ -46,9 +46,28 @@ final class AuthService
         $_SESSION['auth_source'] = 'query_string';
         $_SESSION['logged_at'] = date('c');
 
-        $cleanUrl = $this->request->basePath() . '/';
+        $cleanUrl = $this->cleanCurrentUrlAfterQueryLogin();
         header('Location: ' . ($cleanUrl === '' ? '/' : $cleanUrl), true, 302);
         exit;
+    }
+
+    private function cleanCurrentUrlAfterQueryLogin(): string
+    {
+        $uri = $this->request->fullUri();
+        $path = (string) (parse_url($uri, PHP_URL_PATH) ?: '');
+        $query = (string) (parse_url($uri, PHP_URL_QUERY) ?: '');
+
+        if ($path === '') {
+            $path = $this->request->basePath() . '/';
+        }
+
+        parse_str($query, $params);
+        foreach (['user', 'email', 'nivel'] as $key) {
+            unset($params[$key]);
+        }
+
+        $cleanQuery = http_build_query($params);
+        return $path . ($cleanQuery !== '' ? '?' . $cleanQuery : '');
     }
 
     public function ensureLegacyAliases(): void

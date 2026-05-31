@@ -223,6 +223,9 @@
             if (!script.src) {
                 return false;
             }
+            if (shellContent.contains(script)) {
+                return false;
+            }
             return new URL(script.src, window.location.href).href === absolute && script.dataset.shellPending !== '1';
         });
     }

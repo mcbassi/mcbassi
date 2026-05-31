@@ -147,6 +147,6 @@ foreach ($chatCandidates as $chatFile) {
 }
 ?>
 <script>window.APP_LANG = <?= json_encode(current_lang(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>; window.APP_I18N = <?= $i18nPayload ?>;</script>
-<script src="<?= h(asset('assets/js/shell.js')) ?>?v=<?= h($shellAssetVersion ?? 'menufix_recollapse1') ?>"></script>
+<script src="<?= h(asset('assets/js/shell.js')) ?>?v=<?= h($shellAssetVersion ?? 'mp_sdk_shell_fix1') ?>"></script>
 </body>
 </html>
