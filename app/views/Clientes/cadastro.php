@@ -12,6 +12,10 @@
 // Chave pública MP — use variável de ambiente ou constante definida no .env
 $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
              : \App\Infra\Env::get('MP_PUBLIC_KEY', 'TEST-sua-chave-aqui');
+$mpIdentificationType = strtoupper(trim((string) \App\Infra\Env::get('MP_IDENTIFICATION_TYPE', 'CPF')));
+$mpIdentificationLabel = $mpIdentificationType === 'CC' ? 'Documento do titular do cartão' : 'CPF do titular do cartão';
+$mpIdentificationPlaceholder = $mpIdentificationType === 'CC' ? 'Número do documento' : '000.000.000-00';
+$mpIdentificationMaxLength = $mpIdentificationType === 'CC' ? '20' : '14';
 ?>
 
 <?php if ($resultado): ?>
@@ -33,6 +37,54 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
 <div id="cad-mp-status" class="alert alert--warning" style="display:none;margin-bottom:20px">
     Aguardando carregamento do Mercado Pago...
 </div>
+
+<script>
+window.CAD_MP_ERROR_MESSAGES = [];
+window.CAD_MP_DESCRIBE_ERROR = function (error) {
+    if (!error) {
+        return 'Erro desconhecido';
+    }
+
+    if (typeof error === 'string') {
+        return error;
+    }
+
+    if (error.message) {
+        return error.message;
+    }
+
+    try {
+        return JSON.stringify(error, Object.getOwnPropertyNames(error));
+    } catch (jsonError) {
+        return String(error);
+    }
+};
+window.addEventListener('error', function (event) {
+    const source = event.filename || '';
+    if (!source.includes('mercadopago.com') && !source.includes('mercadolibre.com')) {
+        return;
+    }
+
+    const message = window.CAD_MP_DESCRIBE_ERROR(event.error || event.message);
+    window.CAD_MP_ERROR_MESSAGES.push(message);
+    const status = document.getElementById('cad-mp-status');
+    if (status) {
+        status.style.display = 'block';
+        status.className = 'alert alert--danger';
+        status.textContent = 'Erro no SDK do Mercado Pago: ' + message;
+    }
+});
+window.addEventListener('unhandledrejection', function (event) {
+    const message = window.CAD_MP_DESCRIBE_ERROR(event.reason);
+    window.CAD_MP_ERROR_MESSAGES.push(message);
+    const status = document.getElementById('cad-mp-status');
+    if (status) {
+        status.style.display = 'block';
+        status.className = 'alert alert--danger';
+        status.textContent = 'Erro no SDK do Mercado Pago: ' + message;
+    }
+});
+</script>
 
 <script src="https://sdk.mercadopago.com/js/v2" onerror="window.CAD_MP_SDK_ERROR=true"></script>
 
@@ -114,7 +166,7 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
                 </div>
                 <div class="cad-field">
                     <label>E-mail</label>
-                    <input type="email" name="email" placeholder="joao@empresa.com" required
+                    <input type="email" id="cad-email" name="email" placeholder="joao@empresa.com" required
                            value="<?= h($_POST['email'] ?? '') ?>">
                 </div>
             </div>
@@ -165,10 +217,15 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
             </div>
 
             <div class="cad-field">
-                <label>CPF do titular do cartão</label>
-                <input type="hidden" id="cad-docType" value="CPF">
-                <input type="text" id="cad-docNumber" placeholder="000.000.000-00" maxlength="14" autocomplete="off">
+                <label><?= h($mpIdentificationLabel) ?></label>
+                <select id="cad-docType" style="display:none" aria-hidden="true" tabindex="-1">
+                    <option value="<?= h($mpIdentificationType) ?>" selected><?= h($mpIdentificationType) ?></option>
+                </select>
+                <input type="text" id="cad-docNumber" placeholder="<?= h($mpIdentificationPlaceholder) ?>" maxlength="<?= h($mpIdentificationMaxLength) ?>" autocomplete="off">
             </div>
+
+            <select id="cad-issuer-select" style="display:none" aria-hidden="true" tabindex="-1"></select>
+            <select id="cad-installments-select" style="display:none" aria-hidden="true" tabindex="-1"></select>
 
             <div class="cad-security">
                 🔒 Os dados do cartão são tokenizados pelo <strong>Mercado Pago</strong> e nunca passam pelo nosso servidor.
@@ -185,6 +242,10 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
 <script>
 (function () {
     const sdkStatus = document.getElementById('cad-mp-status');
+    const describeMpError = window.CAD_MP_DESCRIBE_ERROR || function (error) {
+        return error && error.message ? error.message : String(error || 'Erro desconhecido');
+    };
+
     function setSdkStatus(message, isError) {
         if (!sdkStatus) return;
         sdkStatus.style.display = message ? 'block' : 'none';
@@ -210,14 +271,17 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
             expirationDate: { id: 'cad-expiry',     placeholder: 'MM/AA' },
             securityCode:   { id: 'cad-cvv',        placeholder: 'CVV' },
             cardholderName: { id: 'cad-cardHolder', placeholder: 'COMO IMPRESSO NO CARTÃO' },
+            cardholderEmail: { id: 'cad-email' },
             identificationNumber: { id: 'cad-docNumber' },
             identificationType:   { id: 'cad-docType' },
+            issuer: { id: 'cad-issuer-select' },
+            installments: { id: 'cad-installments-select' },
         },
         callbacks: {
             onFormMounted: err => {
                 if (err) {
                     console.error('MP mount:', err);
-                    setSdkStatus('Erro ao montar campos do Mercado Pago: ' + (err.message || JSON.stringify(err)), true);
+                    setSdkStatus('Erro ao montar campos do Mercado Pago: ' + describeMpError(err), true);
                     return;
                 }
                 setSdkStatus('', false);
@@ -252,7 +316,7 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
         });
     } catch (error) {
         console.error('MP init:', error);
-        setSdkStatus('Erro ao inicializar Mercado Pago: ' + (error.message || String(error)), true);
+        setSdkStatus('Erro ao inicializar Mercado Pago: ' + describeMpError(error), true);
         return;
     }
 
@@ -282,6 +346,11 @@ $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
     });
 
     document.getElementById('cad-docNumber').addEventListener('input', function () {
+        if (document.getElementById('cad-docType').value !== 'CPF') {
+            this.value = this.value.replace(/[^\dA-Za-z.-]/g, '').slice(0, 20);
+            return;
+        }
+
         let v = this.value.replace(/\D/g, '').slice(0, 11);
         v = v.replace(/(\d{3})(\d)/, '$1.$2')
              .replace(/(\d{3})(\d)/, '$1.$2')
