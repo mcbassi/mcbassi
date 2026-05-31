@@ -11,7 +11,7 @@
 
 // Chave pública MP — use variável de ambiente ou constante definida no .env
 $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY
-             : ($_ENV['MP_PUBLIC_KEY'] ?? getenv('MP_PUBLIC_KEY') ?: 'TEST-sua-chave-aqui');
+             : \App\Infra\Env::get('MP_PUBLIC_KEY', 'TEST-sua-chave-aqui');
 ?>
 
 <?php if ($resultado): ?>

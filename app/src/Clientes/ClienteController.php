@@ -5,6 +5,7 @@ namespace App\Clientes;
 
 use App\Auth\AuthService;
 use App\Infra\Database;
+use App\Infra\Env;
 use App\Support\Request;
 use App\Support\View;
 
@@ -90,8 +91,11 @@ final class ClienteController
         $planoInfo = $planos[$plano];
 
         // ── Mercado Pago ──────────────────────────────────────────
-        $mpKey = defined('MP_ACCESS_TOKEN') ? MP_ACCESS_TOKEN
-               : ($_ENV['MP_ACCESS_TOKEN'] ?? getenv('MP_ACCESS_TOKEN') ?: '');
+        $mpKey = $this->mercadoPagoAccessToken();
+        if ($mpKey === '') {
+            $this->renderCadastro(null, 'Access Token do Mercado Pago nÃ£o configurado em MP_ACCESS_TOKEN.');
+            return;
+        }
 
         $mpCustomer = $this->mpPost('/v1/customers', [
             'email'          => $email,
@@ -193,5 +197,14 @@ final class ClienteController
         $resp = json_decode((string) curl_exec($ch), true);
         curl_close($ch);
         return is_array($resp) ? $resp : ['error' => true, 'message' => 'Sem resposta da API'];
+    }
+
+    private function mercadoPagoAccessToken(): string
+    {
+        if (defined('MP_ACCESS_TOKEN')) {
+            return trim((string) MP_ACCESS_TOKEN);
+        }
+
+        return trim((string) Env::get('MP_ACCESS_TOKEN', ''));
     }
 }
