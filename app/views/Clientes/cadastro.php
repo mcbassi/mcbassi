@@ -16,6 +16,10 @@ $mpIdentificationType = strtoupper(trim((string) \App\Infra\Env::get('MP_IDENTIF
 $mpIdentificationLabel = $mpIdentificationType === 'CC' ? 'Documento do titular do cartão' : 'CPF do titular do cartão';
 $mpIdentificationPlaceholder = $mpIdentificationType === 'CC' ? 'Número do documento' : '000.000.000-00';
 $mpIdentificationMaxLength = $mpIdentificationType === 'CC' ? '20' : '14';
+$mpAmountMultiplier = (float) \App\Infra\Env::get('MP_AMOUNT_MULTIPLIER', $mpIdentificationType === 'CPF' ? '1' : '100');
+$mpPlanAmount = static function (float $amount) use ($mpAmountMultiplier): string {
+    return number_format($amount * $mpAmountMultiplier, 2, '.', '');
+};
 ?>
 
 <?php if ($resultado): ?>
@@ -128,18 +132,18 @@ window.addEventListener('unhandledrejection', function (event) {
     <div class="cad-section">
         <div class="cad-section__title">Plano</div>
         <div class="cad-plans" id="cad-plans">
-            <div class="cad-plan" data-plano="basico" data-valor="49.90" onclick="cadSelecionarPlano(this)">
+            <div class="cad-plan" data-plano="basico" data-valor="49.90" data-valor-mp="<?= h($mpPlanAmount(49.90)) ?>" onclick="cadSelecionarPlano(this)">
                 <div class="cad-plan__name">Básico</div>
                 <div class="cad-plan__price">R$ 49<small style="font-size:13px">,90</small></div>
                 <div class="cad-plan__period">por mês</div>
             </div>
-            <div class="cad-plan selected" data-plano="profissional" data-valor="99.90" onclick="cadSelecionarPlano(this)">
+            <div class="cad-plan selected" data-plano="profissional" data-valor="99.90" data-valor-mp="<?= h($mpPlanAmount(99.90)) ?>" onclick="cadSelecionarPlano(this)">
                 <div class="cad-plan__name">Profissional</div>
                 <div class="cad-plan__price">R$ 99<small style="font-size:13px">,90</small></div>
                 <div class="cad-plan__period">por mês</div>
                 <div class="cad-plan__badge">Popular</div>
             </div>
-            <div class="cad-plan" data-plano="enterprise" data-valor="249.90" onclick="cadSelecionarPlano(this)">
+            <div class="cad-plan" data-plano="enterprise" data-valor="249.90" data-valor-mp="<?= h($mpPlanAmount(249.90)) ?>" onclick="cadSelecionarPlano(this)">
                 <div class="cad-plan__name">Enterprise</div>
                 <div class="cad-plan__price">R$ 249<small style="font-size:13px">,90</small></div>
                 <div class="cad-plan__period">por mês</div>
@@ -261,9 +265,11 @@ window.addEventListener('unhandledrejection', function (event) {
     let cardForm;
     try {
         const mp = new MercadoPago('<?= h($mpPublicKey) ?>', { locale: 'pt-BR' });
+        const selectedPlan = document.querySelector('.cad-plan.selected');
+        const initialAmount = selectedPlan ? selectedPlan.dataset.valorMp : '<?= h($mpPlanAmount(99.90)) ?>';
 
         cardForm = mp.cardForm({
-        amount: '99.90',
+        amount: initialAmount,
         iframe: true,
         form: {
             id: 'cad-form',
@@ -282,6 +288,26 @@ window.addEventListener('unhandledrejection', function (event) {
                 if (err) {
                     console.error('MP mount:', err);
                     setSdkStatus('Erro ao montar campos do Mercado Pago: ' + describeMpError(err), true);
+                    return;
+                }
+                setSdkStatus('', false);
+            },
+            onFetching: resource => {
+                if (resource === 'installments') {
+                    setSdkStatus('Calculando parcelas no Mercado Pago...', false);
+                }
+            },
+            onPaymentMethodsReceived: (error) => {
+                if (error) {
+                    console.error('MP payment methods:', error);
+                    setSdkStatus('Erro ao identificar meio de pagamento: ' + describeMpError(error), true);
+                }
+            },
+            onInstallmentsReceived: (error) => {
+                if (error) {
+                    console.error('MP installments:', error);
+                    setSdkStatus('Nao foi possivel calcular parcelas. O pagamento sera tentado em 1 parcela.', true);
+                    document.getElementById('cad-inst').value = 1;
                     return;
                 }
                 setSdkStatus('', false);
@@ -325,7 +351,7 @@ window.addEventListener('unhandledrejection', function (event) {
         document.querySelectorAll('.cad-plan').forEach(c => c.classList.remove('selected'));
         card.classList.add('selected');
         document.getElementById('cad-plano').value = card.dataset.plano;
-        cardForm.update({ amount: card.dataset.valor });
+        cardForm.update({ amount: card.dataset.valorMp || card.dataset.valor });
     };
 
     // ── Máscaras ──────────────────────────────────────────────────

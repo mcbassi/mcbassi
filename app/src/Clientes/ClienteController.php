@@ -75,11 +75,13 @@ final class ClienteController
         $pmId      = trim((string) ($this->request->input('paymentMethodId') ?? ''));
         $issuer    = trim((string) ($this->request->input('issuerId')  ?? ''));
         $docType   = strtoupper(trim((string) Env::get('MP_IDENTIFICATION_TYPE', 'CPF')));
+        $mpAmountMultiplier = (float) Env::get('MP_AMOUNT_MULTIPLIER', $docType === 'CPF' ? '1' : '100');
 
         // Validações
         if ($nome === '')         { $this->renderCadastro(null, 'Nome é obrigatório.'); return; }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { $this->renderCadastro(null, 'E-mail inválido.'); return; }
-        if (strlen($cpf) !== 11)  { $this->renderCadastro(null, 'CPF inválido.'); return; }
+        if ($docType === 'CPF' && strlen($cpf) !== 11)  { $this->renderCadastro(null, 'CPF invalido.'); return; }
+        if ($docType !== 'CPF' && strlen($cpf) < 4)  { $this->renderCadastro(null, 'Documento invalido.'); return; }
         if (strlen($telefone) < 10) { $this->renderCadastro(null, 'Telefone inválido.'); return; }
         if ($cardToken === '')    { $this->renderCadastro(null, 'Dados do cartão ausentes. Tente novamente.'); return; }
 
@@ -90,6 +92,7 @@ final class ClienteController
         ];
         if (!isset($planos[$plano])) { $this->renderCadastro(null, 'Plano inválido.'); return; }
         $planoInfo = $planos[$plano];
+        $mpTransactionAmount = round((float) $planoInfo['valor'] * $mpAmountMultiplier, 2);
 
         // ── Mercado Pago ──────────────────────────────────────────
         $mpKey = $this->mercadoPagoAccessToken();
@@ -118,7 +121,7 @@ final class ClienteController
         }
 
         $pagamento = $this->mpPost('/v1/payments', [
-            'transaction_amount' => $planoInfo['valor'],
+            'transaction_amount' => $mpTransactionAmount,
             'description'        => "Assinatura {$planoInfo['nome']} - {$nome}",
             'payment_method_id'  => $pmId,
             'issuer_id'          => $issuer ?: null,
