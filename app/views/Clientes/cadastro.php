@@ -49,6 +49,9 @@ $selectedDoc ??= $documentos[0] ?? [
     'mp_identification_type' => 'CPF',
     'placeholder' => '000.000.000-00',
     'max_length' => 14,
+    'phone_prefix' => '+55',
+    'currency_code' => 'BRL',
+    'currency_symbol' => 'R$',
     'amount_multiplier' => 1,
     'is_default' => 1,
 ];
@@ -65,7 +68,7 @@ $mpPlanAmount = static function (float $amount) use ($selectedDoc): string {
 <div class="alert alert--success" style="margin-bottom:20px">
     Cliente <strong><?= h($resultado['cliente']) ?></strong> cadastrado com sucesso!
     &nbsp;|&nbsp; Plano: <strong><?= h($resultado['plano']) ?></strong>
-    &nbsp;|&nbsp; R$ <?= number_format((float) $resultado['valor'], 2, ',', '.') ?>/mes
+    &nbsp;|&nbsp; <?= h((string) ($resultado['currency_symbol'] ?? 'R$')) ?> <?= number_format((float) $resultado['valor'], strtoupper((string) ($resultado['currency_code'] ?? 'BRL')) === 'COP' ? 0 : 2, ',', '.') ?> <?= h((string) ($resultado['currency_code'] ?? 'BRL')) ?>/mes
     &nbsp;|&nbsp; Pagamento: <strong><?= h(strtoupper($resultado['status'])) ?></strong>
 </div>
 <?php endif; ?>

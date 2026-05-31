@@ -55,6 +55,150 @@ final class ClienteController
     }
 
     // ── POST /clientes/cadastro ───────────────────────────────────
+    public function faturamento(): void
+    {
+        $this->auth->requireAuth();
+
+        $pdo = $this->database->pdo();
+        $today = new \DateTimeImmutable('today');
+        $yearStart = $today->setDate((int) $today->format('Y'), 1, 1);
+        $monthStart = $today->modify('first day of this month')->setTime(0, 0, 0);
+        $nextMonthStart = $monthStart->modify('+1 month');
+
+        $planRows = $pdo->query("
+            SELECT c.pais_codigo,
+                   COALESCE(pd.pais_nome, c.pais_codigo) AS pais_nome,
+                   COALESCE(pd.currency_code, 'BRL') AS currency_code,
+                   COALESCE(pd.currency_symbol, 'R$') AS currency_symbol,
+                   c.plano,
+                   COUNT(*) AS clientes,
+                   COALESCE(SUM(c.valor_plano * COALESCE(pd.amount_multiplier, 1)), 0) AS receita_mensal
+            FROM clientes c
+            LEFT JOIN pais_documentos pd
+              ON pd.pais_codigo = c.pais_codigo COLLATE utf8mb4_unicode_ci
+             AND pd.documento_tipo = c.documento_tipo COLLATE utf8mb4_unicode_ci
+            WHERE c.status = 'ativo'
+            GROUP BY c.pais_codigo, pais_nome, currency_code, currency_symbol, c.plano
+            ORDER BY pais_nome, FIELD(c.plano, 'basico', 'profissional', 'enterprise')
+        ")->fetchAll();
+
+        $paises = [];
+        foreach ($planRows as $row) {
+            $paisCodigo = (string) $row['pais_codigo'];
+            $paises[$paisCodigo] ??= [
+                'pais_codigo' => $paisCodigo,
+                'pais_nome' => (string) $row['pais_nome'],
+                'currency_code' => (string) $row['currency_code'],
+                'currency_symbol' => (string) $row['currency_symbol'],
+                'clientes' => 0,
+                'receita_mensal' => 0.0,
+                'faturamento_real_mes' => 0.0,
+                'planejado_total' => 0.0,
+                'planos' => [],
+                'planejados' => [],
+            ];
+            $paises[$paisCodigo]['clientes'] += (int) $row['clientes'];
+            $paises[$paisCodigo]['receita_mensal'] += (float) $row['receita_mensal'];
+        }
+
+        $planNames = ['basico' => 'Basico', 'profissional' => 'Profissional', 'enterprise' => 'Enterprise'];
+        foreach ($planRows as $row) {
+            $paisCodigo = (string) $row['pais_codigo'];
+            $clientes = (int) $row['clientes'];
+            $receita = (float) $row['receita_mensal'];
+            $paisClientes = (int) ($paises[$paisCodigo]['clientes'] ?? 0);
+            $paisReceita = (float) ($paises[$paisCodigo]['receita_mensal'] ?? 0);
+            $paises[$paisCodigo]['planos'][] = [
+                'plano' => (string) $row['plano'],
+                'nome' => $planNames[(string) $row['plano']] ?? ucfirst((string) $row['plano']),
+                'clientes' => $clientes,
+                'receita_mensal' => $receita,
+                'percentual_clientes' => $paisClientes > 0 ? round(($clientes / $paisClientes) * 100, 1) : 0,
+                'percentual_receita' => $paisReceita > 0 ? round(($receita / $paisReceita) * 100, 1) : 0,
+            ];
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT c.pais_codigo, COALESCE(SUM(cp.valor), 0) AS valor
+            FROM clientes_pagamentos cp
+            INNER JOIN clientes c ON c.id = cp.cliente_id
+            WHERE cp.status = 'approved'
+              AND cp.data_cobranca >= :inicio
+              AND cp.data_cobranca < :fim
+            GROUP BY c.pais_codigo
+        ");
+        $stmt->execute([':inicio' => $monthStart->format('Y-m-d H:i:s'), ':fim' => $nextMonthStart->format('Y-m-d H:i:s')]);
+        foreach ($stmt->fetchAll() as $row) {
+            $paisCodigo = (string) $row['pais_codigo'];
+            if (isset($paises[$paisCodigo])) {
+                $paises[$paisCodigo]['faturamento_real_mes'] = (float) $row['valor'];
+            }
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT c.pais_codigo,
+                   DATE_FORMAT(cp.data_cobranca, '%Y-%m') AS mes,
+                   DATE_FORMAT(cp.data_cobranca, '%m/%Y') AS rotulo,
+                   COALESCE(SUM(cp.valor), 0) AS valor,
+                   COUNT(*) AS quantidade
+            FROM clientes_pagamentos cp
+            INNER JOIN clientes c ON c.id = cp.cliente_id
+            WHERE cp.status = 'scheduled'
+              AND cp.data_cobranca >= :inicio
+            GROUP BY c.pais_codigo, DATE_FORMAT(cp.data_cobranca, '%Y-%m'), DATE_FORMAT(cp.data_cobranca, '%m/%Y')
+            ORDER BY c.pais_codigo, mes
+        ");
+        $stmt->execute([':inicio' => $nextMonthStart->format('Y-m-d H:i:s')]);
+        $plannedMonthsByCountry = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $paisCodigo = (string) $row['pais_codigo'];
+            if (!isset($paises[$paisCodigo])) {
+                continue;
+            }
+            $plannedMonthsByCountry[$paisCodigo] ??= 0;
+            if ($plannedMonthsByCountry[$paisCodigo] >= 12) {
+                continue;
+            }
+            $plannedMonthsByCountry[$paisCodigo]++;
+            $valor = (float) $row['valor'];
+            $paises[$paisCodigo]['planejados'][] = [
+                'mes' => (string) $row['mes'],
+                'rotulo' => (string) $row['rotulo'],
+                'valor' => $valor,
+                'quantidade' => (int) $row['quantidade'],
+            ];
+            $paises[$paisCodigo]['planejado_total'] += $valor;
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT DATE_FORMAT(data_cadastro, '%Y-%m') AS mes, COUNT(*) AS clientes
+            FROM clientes
+            WHERE data_cadastro >= :inicio
+              AND data_cadastro < :fim
+            GROUP BY DATE_FORMAT(data_cadastro, '%Y-%m')
+        ");
+        $stmt->execute([':inicio' => $yearStart->format('Y-m-d H:i:s'), ':fim' => $nextMonthStart->format('Y-m-d H:i:s')]);
+        $ganhosRaw = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $ganhosRaw[(string) $row['mes']] = (int) $row['clientes'];
+        }
+
+        $ganhoClientes = [];
+        for ($cursor = $yearStart; $cursor < $nextMonthStart; $cursor = $cursor->modify('+1 month')) {
+            $key = $cursor->format('Y-m');
+            $ganhoClientes[] = ['mes' => $key, 'rotulo' => $cursor->format('m/Y'), 'clientes' => $ganhosRaw[$key] ?? 0];
+        }
+
+        View::render('Clientes/faturamento', [
+            'pageTitle' => 'Relatorio de Faturamento',
+            'contentTitle' => 'Relatorio de Faturamento',
+            'subtitle' => 'Faturamento',
+            'paises' => array_values($paises),
+            'ganhoClientes' => $ganhoClientes,
+            'mesAtualRotulo' => $monthStart->format('m/Y'),
+        ]);
+    }
+
     public function cadastroSalvar(): void
     {
         $this->auth->requireAuth();
@@ -90,6 +234,8 @@ final class ClienteController
         $documentoTipo = (string) $documentoConfig['documento_tipo'];
         $docType = (string) $documentoConfig['mp_identification_type'];
         $mpAmountMultiplier = (float) $documentoConfig['amount_multiplier'];
+        $currencyCode = (string) ($documentoConfig['currency_code'] ?? 'BRL');
+        $currencySymbol = (string) ($documentoConfig['currency_symbol'] ?? 'R$');
         $phonePrefix = preg_replace('/\D/', '', (string) ($documentoConfig['phone_prefix'] ?? ''));
         if ($phonePrefix !== '' && str_starts_with($telefone, $phonePrefix)) {
             $telefoneNacional = substr($telefone, strlen($phonePrefix));
@@ -240,7 +386,7 @@ final class ClienteController
             $this->ensurePaymentSchedule(
                 $pdo,
                 $clienteId,
-                (float) $planoInfo['valor'],
+                $mpTransactionAmount,
                 (string) ($pagamento['id'] ?? ('mp-sem-id-' . $clienteId . '-' . time())),
                 (string) ($pagamento['status'] ?? 'approved'),
                 (string) ($pagamento['status_detail'] ?? ''),
@@ -254,7 +400,9 @@ final class ClienteController
         $this->renderCadastro([
             'cliente' => $nome,
             'plano'   => $planoInfo['nome'],
-            'valor'   => $planoInfo['valor'],
+            'valor'   => $mpTransactionAmount,
+            'currency_code' => $currencyCode,
+            'currency_symbol' => $currencySymbol,
             'status'  => $pagamento['status'],
         ], null);
     }
@@ -279,7 +427,8 @@ final class ClienteController
             $stmt = $this->database->pdo()->query("
                 SELECT pais_codigo, pais_nome, documento_tipo, documento_nome,
                        mp_identification_type, placeholder, max_length,
-                       phone_prefix, amount_multiplier, is_default
+                       phone_prefix, currency_code, currency_symbol,
+                       amount_multiplier, is_default
                 FROM pais_documentos
                 WHERE ativo = 1
                 ORDER BY pais_nome, is_default DESC, documento_nome
@@ -297,6 +446,8 @@ final class ClienteController
                     'placeholder' => '000.000.000-00',
                     'max_length' => 14,
                     'phone_prefix' => '+55',
+                    'currency_code' => 'BRL',
+                    'currency_symbol' => 'R$',
                     'amount_multiplier' => 1,
                     'is_default' => 1,
                 ],
@@ -309,6 +460,8 @@ final class ClienteController
                     'placeholder' => 'Numero de cedula',
                     'max_length' => 20,
                     'phone_prefix' => '+57',
+                    'currency_code' => 'COP',
+                    'currency_symbol' => '$',
                     'amount_multiplier' => 100,
                     'is_default' => 1,
                 ],
