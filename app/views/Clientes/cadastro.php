@@ -351,7 +351,6 @@ window.addEventListener('unhandledrejection', function (event) {
         document.querySelectorAll('.cad-plan').forEach(c => c.classList.remove('selected'));
         card.classList.add('selected');
         document.getElementById('cad-plano').value = card.dataset.plano;
-        cardForm.update('amount', card.dataset.valorMp || card.dataset.valor);
     };
 
     // ── Máscaras ──────────────────────────────────────────────────
