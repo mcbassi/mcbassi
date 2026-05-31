@@ -79,8 +79,11 @@ final class ClienteController
         $issuer    = trim((string) ($this->request->input('issuerId')  ?? ''));
         $documentoConfig = $this->findDocumentConfig($paisCodigo, $documentoTipo);
         if ($documentoConfig === null) {
-            $this->renderCadastro(null, 'Selecione um pais e tipo de documento valido.');
-            return;
+            $documentoConfig = $this->defaultDocumentConfig();
+            if ($documentoConfig === null) {
+                $this->renderCadastro(null, 'Selecione um pais e tipo de documento valido.');
+                return;
+            }
         }
         $paisCodigo = (string) $documentoConfig['pais_codigo'];
         $documentoTipo = (string) $documentoConfig['documento_tipo'];
@@ -307,6 +310,24 @@ final class ClienteController
         }
 
         return null;
+    }
+
+    private function defaultDocumentConfig(): ?array
+    {
+        $envMpType = strtoupper(trim((string) Env::get('MP_IDENTIFICATION_TYPE', '')));
+        $fallback = null;
+
+        foreach ($this->loadDocumentOptions() as $documento) {
+            if ($envMpType !== '' && strtoupper((string) $documento['mp_identification_type']) === $envMpType) {
+                return $documento;
+            }
+
+            if ($fallback === null && (int) ($documento['is_default'] ?? 0) === 1) {
+                $fallback = $documento;
+            }
+        }
+
+        return $fallback;
     }
 
     private function normalizeDocumentNumber(string $documento): string

@@ -190,6 +190,8 @@ window.addEventListener('unhandledrejection', function (event) {
         <input type="hidden" name="paymentMethodId" id="cad-pmid">
         <input type="hidden" name="installments" id="cad-inst" value="1">
         <input type="hidden" name="issuerId" id="cad-issuer">
+        <input type="hidden" name="pais_codigo" id="cad-country-value" value="<?= h($selectedPais) ?>">
+        <input type="hidden" name="documento_tipo" id="cad-document-type-value" value="<?= h($selectedTipo) ?>">
 
         <div class="cad-section">
             <div class="cad-section__title">Dados do cliente</div>
@@ -206,11 +208,11 @@ window.addEventListener('unhandledrejection', function (event) {
             <div class="cad-row">
                 <div class="cad-field">
                     <label>Pais</label>
-                    <select id="cad-country" name="pais_codigo" required></select>
+                    <select id="cad-country" required></select>
                 </div>
                 <div class="cad-field">
                     <label>Tipo de documento</label>
-                    <select id="cad-document-type" name="documento_tipo" required></select>
+                    <select id="cad-document-type" required></select>
                 </div>
             </div>
             <div class="cad-row">
@@ -311,6 +313,8 @@ window.addEventListener('unhandledrejection', function (event) {
     const sdkStatus = document.getElementById('cad-mp-status');
     const countrySelect = document.getElementById('cad-country');
     const documentTypeSelect = document.getElementById('cad-document-type');
+    const countryValue = document.getElementById('cad-country-value');
+    const documentTypeValue = document.getElementById('cad-document-type-value');
     const documentNumber = document.getElementById('cad-document-number');
     const cardDocumentType = document.getElementById('cad-docType');
     const cardDocumentNumber = document.getElementById('cad-docNumber');
@@ -476,6 +480,8 @@ window.addEventListener('unhandledrejection', function (event) {
 
     function applyDocumentConfig() {
         const doc = currentDoc();
+        countryValue.value = countrySelect.value;
+        documentTypeValue.value = documentTypeSelect.value;
         document.getElementById('cad-document-label').textContent = doc.documento_nome + ' do cliente';
         documentNumber.placeholder = doc.placeholder || 'Numero do documento';
         documentNumber.maxLength = Number(doc.max_length || 20);
@@ -622,6 +628,8 @@ window.addEventListener('unhandledrejection', function (event) {
                     btn.disabled = true;
 
                     try {
+                        countryValue.value = countrySelect.value;
+                        documentTypeValue.value = documentTypeSelect.value;
                         syncCardDocument();
                         updateDocumentValidity();
                         if (!form.reportValidity()) {
