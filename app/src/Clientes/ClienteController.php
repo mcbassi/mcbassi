@@ -117,8 +117,16 @@ final class ClienteController
         ], $mpKey);
 
         if (isset($mpCustomer['error'])) {
-            $this->renderCadastro(null, 'Erro ao criar cliente no Mercado Pago: ' . $this->formatMpError($mpCustomer));
-            return;
+            if ($this->isMpCustomerAlreadyExists($mpCustomer)) {
+                $mpCustomer = $this->findMpCustomerByEmail($email, $mpKey);
+                if (!isset($mpCustomer['id'])) {
+                    $this->renderCadastro(null, 'Cliente ja existe no Mercado Pago, mas nao foi possivel recuperar o cadastro existente: ' . $this->formatMpError($mpCustomer));
+                    return;
+                }
+            } else {
+                $this->renderCadastro(null, 'Erro ao criar cliente no Mercado Pago: ' . $this->formatMpError($mpCustomer));
+                return;
+            }
         }
 
         $mpCard = $this->mpPost("/v1/customers/{$mpCustomer['id']}/cards", ['token' => $cardToken], $mpKey);
@@ -235,6 +243,79 @@ final class ClienteController
         }
 
         return $resp;
+    }
+
+    private function mpGet(string $endpoint, string $token): array
+    {
+        $ch = curl_init("https://api.mercadopago.com{$endpoint}");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPGET        => true,
+            CURLOPT_PROXY          => '',
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/json',
+                "Authorization: Bearer {$token}",
+            ],
+        ]);
+        $raw = (string) curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+        $resp = json_decode($raw, true);
+        if (!is_array($resp)) {
+            return [
+                'error' => true,
+                'status' => $httpCode,
+                'message' => $curlError !== '' ? $curlError : 'Sem resposta da API',
+            ];
+        }
+
+        if ($httpCode >= 400 && !isset($resp['status'])) {
+            $resp['status'] = $httpCode;
+        }
+
+        return $resp;
+    }
+
+    /** @param array<string,mixed> $error */
+    private function isMpCustomerAlreadyExists(array $error): bool
+    {
+        if (($error['status'] ?? null) !== 400) {
+            return false;
+        }
+
+        if (isset($error['cause']) && is_array($error['cause'])) {
+            foreach ($error['cause'] as $cause) {
+                if (is_array($cause) && (string) ($cause['code'] ?? '') === '101') {
+                    return true;
+                }
+            }
+        }
+
+        return stripos((string) ($error['message'] ?? ''), 'already exist') !== false;
+    }
+
+    private function findMpCustomerByEmail(string $email, string $token): array
+    {
+        $response = $this->mpGet('/v1/customers/search?email=' . rawurlencode($email), $token);
+        if (isset($response['error'])) {
+            return $response;
+        }
+
+        $results = $response['results'] ?? [];
+        if (!is_array($results) || $results === []) {
+            return ['error' => true, 'message' => 'Customer existente nao encontrado na busca.', 'status' => $response['status'] ?? 404];
+        }
+
+        foreach ($results as $customer) {
+            if (is_array($customer) && strcasecmp((string) ($customer['email'] ?? ''), $email) === 0) {
+                return $customer;
+            }
+        }
+
+        return is_array($results[0] ?? null)
+            ? $results[0]
+            : ['error' => true, 'message' => 'Resposta invalida da busca de customer.'];
     }
 
     /** @param array<string,mixed> $error */
