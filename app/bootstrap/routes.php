@@ -82,5 +82,7 @@ return [
     ['GET',  '/clientes',          [ClienteController::class, 'index']],
     ['GET',  '/clientes/cadastro', [ClienteController::class, 'cadastro']],
     ['GET',  '/clientes/faturamento', [ClienteController::class, 'faturamento']],
+    ['GET',  '/clientes/planos', [ClienteController::class, 'planos']],
     ['POST', '/clientes/cadastro', [ClienteController::class, 'cadastroSalvar'], ['csrf' => true]],
+    ['POST', '/clientes/planos', [ClienteController::class, 'planosSalvar'], ['csrf' => true]],
 ];

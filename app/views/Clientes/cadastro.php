@@ -11,6 +11,8 @@
 
 $mpPublicKey = defined('MP_PUBLIC_KEY') ? MP_PUBLIC_KEY : \App\Infra\Env::get('MP_PUBLIC_KEY', 'TEST-sua-chave-aqui');
 $documentos = is_array($documentos ?? null) ? $documentos : [];
+$planosVenda = is_array($planosVenda ?? null) ? $planosVenda : [];
+$paisInicial = strtoupper(trim((string) ($paisInicial ?? '')));
 
 $envMpType = strtoupper(trim((string) \App\Infra\Env::get('MP_IDENTIFICATION_TYPE', '')));
 $postedPais = strtoupper(trim((string) ($_POST['pais_codigo'] ?? '')));
@@ -25,6 +27,10 @@ foreach ($documentos as $doc) {
     if ($postedPais !== '' && $postedTipo !== '' && $docPais === $postedPais && $docTipo === $postedTipo) {
         $selectedDoc = $doc;
         break;
+    }
+
+    if ($selectedDoc === null && $postedPais === '' && $paisInicial !== '' && $docPais === $paisInicial && (int) ($doc['is_default'] ?? 0) === 1) {
+        $selectedDoc = $doc;
     }
 
     if ($selectedDoc === null && $envMpType !== '' && $docMpType === $envMpType) {
@@ -59,9 +65,22 @@ $selectedDoc ??= $documentos[0] ?? [
 $selectedPais = (string) $selectedDoc['pais_codigo'];
 $selectedTipo = (string) $selectedDoc['documento_tipo'];
 $documentoJson = json_encode($documentos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-$mpPlanAmount = static function (float $amount) use ($selectedDoc): string {
-    return number_format($amount * (float) ($selectedDoc['amount_multiplier'] ?? 1), 2, '.', '');
+$planosJson = json_encode($planosVenda, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$formatMoney = static function (float $value, string $symbol, string $code): string {
+    $decimals = strtoupper($code) === 'COP' ? 0 : 2;
+    return $symbol . ' ' . number_format($value, $decimals, ',', '.');
 };
+$selectedPlans = array_values(array_filter($planosVenda, static fn (array $plan): bool => (string) $plan['pais_codigo'] === $selectedPais));
+$selectedPlanCode = (string) ($_POST['plano'] ?? '');
+if ($selectedPlanCode === '') {
+    foreach ($selectedPlans as $plan) {
+        if ((int) ($plan['popular'] ?? 0) === 1) {
+            $selectedPlanCode = (string) $plan['plano_codigo'];
+            break;
+        }
+    }
+}
+$selectedPlanCode = $selectedPlanCode !== '' ? $selectedPlanCode : (string) ($selectedPlans[0]['plano_codigo'] ?? 'profissional');
 ?>
 
 <?php if ($resultado): ?>
@@ -167,28 +186,28 @@ window.addEventListener('unhandledrejection', function (event) {
     <div class="cad-section">
         <div class="cad-section__title">Plano</div>
         <div class="cad-plans" id="cad-plans">
-            <div class="cad-plan" data-plano="basico" data-valor="49.90" data-valor-mp="<?= h($mpPlanAmount(49.90)) ?>" onclick="cadSelecionarPlano(this)">
-                <div class="cad-plan__name">Basico</div>
-                <div class="cad-plan__price">R$ 49<small style="font-size:13px">,90</small></div>
-                <div class="cad-plan__period">por mes</div>
-            </div>
-            <div class="cad-plan selected" data-plano="profissional" data-valor="99.90" data-valor-mp="<?= h($mpPlanAmount(99.90)) ?>" onclick="cadSelecionarPlano(this)">
-                <div class="cad-plan__name">Profissional</div>
-                <div class="cad-plan__price">R$ 99<small style="font-size:13px">,90</small></div>
-                <div class="cad-plan__period">por mes</div>
-                <div class="cad-plan__badge">Popular</div>
-            </div>
-            <div class="cad-plan" data-plano="enterprise" data-valor="249.90" data-valor-mp="<?= h($mpPlanAmount(249.90)) ?>" onclick="cadSelecionarPlano(this)">
-                <div class="cad-plan__name">Enterprise</div>
-                <div class="cad-plan__price">R$ 249<small style="font-size:13px">,90</small></div>
-                <div class="cad-plan__period">por mes</div>
-            </div>
+            <?php foreach ($selectedPlans as $plan): ?>
+                <?php $isSelected = (string) $plan['plano_codigo'] === $selectedPlanCode; ?>
+                <div class="cad-plan <?= $isSelected ? 'selected' : '' ?>"
+                     data-plano="<?= h((string) $plan['plano_codigo']) ?>"
+                     data-pais="<?= h((string) $plan['pais_codigo']) ?>"
+                     data-valor="<?= h(number_format((float) $plan['valor'], 2, '.', '')) ?>"
+                     data-valor-mp="<?= h(number_format((float) $plan['valor'], 2, '.', '')) ?>"
+                     onclick="cadSelecionarPlano(this)">
+                    <div class="cad-plan__name"><?= h((string) $plan['nome']) ?></div>
+                    <div class="cad-plan__price"><?= h($formatMoney((float) $plan['valor'], (string) $plan['currency_symbol'], (string) $plan['currency_code'])) ?></div>
+                    <div class="cad-plan__period">por mes</div>
+                    <?php if ((int) ($plan['popular'] ?? 0) === 1): ?>
+                        <div class="cad-plan__badge">Popular</div>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
         </div>
     </div>
 
     <form id="cad-form" method="POST" action="<?= h(url('clientes/cadastro.php')) ?>">
         <?= csrf_input() ?>
-        <input type="hidden" name="plano" id="cad-plano" value="profissional">
+        <input type="hidden" name="plano" id="cad-plano" value="<?= h($selectedPlanCode) ?>">
         <input type="hidden" name="cardToken" id="cad-token">
         <input type="hidden" name="paymentMethodId" id="cad-pmid">
         <input type="hidden" name="installments" id="cad-inst" value="1">
@@ -311,8 +330,10 @@ window.addEventListener('unhandledrejection', function (event) {
     form.dataset.cadInitialized = '1';
 
     const documentos = <?= $documentoJson ?: '[]' ?>;
+    const planosVenda = <?= $planosJson ?: '[]' ?>;
     const selectedPais = '<?= h($selectedPais) ?>';
     const selectedTipo = '<?= h($selectedTipo) ?>';
+    const selectedPlanCode = '<?= h($selectedPlanCode) ?>';
     const sdkStatus = document.getElementById('cad-mp-status');
     const countrySelect = document.getElementById('cad-country');
     const documentTypeSelect = document.getElementById('cad-document-type');
@@ -327,6 +348,8 @@ window.addEventListener('unhandledrejection', function (event) {
     const cardholderDocumentNumber = document.getElementById('cad-cardholder-document-number');
     const cardBrand = document.getElementById('cad-card-brand');
     const phoneInput = document.getElementById('cad-tel');
+    const plansWrap = document.getElementById('cad-plans');
+    const planInput = document.getElementById('cad-plano');
 
     const describeMpError = window.CAD_MP_DESCRIBE_ERROR || function (error) {
         return error && error.message ? error.message : String(error || 'Erro desconhecido');
@@ -337,6 +360,55 @@ window.addEventListener('unhandledrejection', function (event) {
         sdkStatus.style.display = message ? 'block' : 'none';
         sdkStatus.className = 'alert ' + (isError ? 'alert--danger' : 'alert--warning');
         sdkStatus.textContent = message || '';
+    }
+
+    function formatPlanMoney(value, symbol, code) {
+        const number = Number(value || 0);
+        const decimals = String(code).toUpperCase() === 'COP' ? 0 : 2;
+        return String(symbol || '') + ' ' + number.toLocaleString('pt-BR', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+        });
+    }
+
+    function plansForCountry(country) {
+        return planosVenda.filter(plan => plan.pais_codigo === country && Number(plan.ativo || 0) === 1)
+            .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
+    }
+
+    function renderPlansForCountry(country) {
+        const plans = plansForCountry(country);
+        plansWrap.innerHTML = '';
+        if (plans.length === 0) {
+            plansWrap.innerHTML = '<div class="cad-plan selected" data-plano="" data-valor="0" data-valor-mp="0"><div class="cad-plan__name">Sem planos</div><div class="cad-plan__period">Cadastre planos para este pais</div></div>';
+            planInput.value = '';
+            return;
+        }
+
+        const current = planInput.value || selectedPlanCode;
+        let selectedPlan = plans.find(plan => plan.plano_codigo === current)
+            || plans.find(plan => Number(plan.popular || 0) === 1)
+            || plans[0];
+
+        plans.forEach(plan => {
+            const card = document.createElement('div');
+            card.className = 'cad-plan' + (plan.plano_codigo === selectedPlan.plano_codigo ? ' selected' : '');
+            card.dataset.plano = plan.plano_codigo;
+            card.dataset.pais = plan.pais_codigo;
+            card.dataset.valor = Number(plan.valor || 0).toFixed(2);
+            card.dataset.valorMp = Number(plan.valor || 0).toFixed(2);
+            card.onclick = function () { window.cadSelecionarPlano(card); };
+            card.innerHTML =
+                '<div class="cad-plan__name"></div>' +
+                '<div class="cad-plan__price"></div>' +
+                '<div class="cad-plan__period">por mes</div>' +
+                (Number(plan.popular || 0) === 1 ? '<div class="cad-plan__badge">Popular</div>' : '');
+            card.querySelector('.cad-plan__name').textContent = plan.nome || plan.plano_codigo;
+            card.querySelector('.cad-plan__price').textContent = formatPlanMoney(plan.valor, plan.currency_symbol, plan.currency_code);
+            plansWrap.appendChild(card);
+        });
+
+        planInput.value = selectedPlan.plano_codigo;
     }
 
     function countryRows() {
@@ -491,9 +563,7 @@ window.addEventListener('unhandledrejection', function (event) {
         documentNumber.placeholder = doc.placeholder || 'Numero do documento';
         documentNumber.maxLength = Number(doc.max_length || 20);
         documentNumber.value = applyDocumentMask(documentNumber.value, doc);
-        document.querySelectorAll('.cad-plan').forEach(card => {
-            card.dataset.valorMp = (Number(card.dataset.valor || 0) * Number(doc.amount_multiplier || 1)).toFixed(2);
-        });
+        renderPlansForCountry(countrySelect.value);
         fillCardholderDocumentTypes();
         syncCardDocument();
     }
@@ -607,7 +677,7 @@ window.addEventListener('unhandledrejection', function (event) {
     window.cadSelecionarPlano = function (card) {
         document.querySelectorAll('.cad-plan').forEach(c => c.classList.remove('selected'));
         card.classList.add('selected');
-        document.getElementById('cad-plano').value = card.dataset.plano;
+        planInput.value = card.dataset.plano || '';
     };
 
     if (window.CAD_MP_SDK_ERROR || typeof MercadoPago === 'undefined') {
@@ -619,7 +689,7 @@ window.addEventListener('unhandledrejection', function (event) {
     try {
         const mp = new MercadoPago('<?= h($mpPublicKey) ?>', { locale: 'pt-BR' });
         const selectedPlan = document.querySelector('.cad-plan.selected');
-        const initialAmount = selectedPlan ? selectedPlan.dataset.valorMp : '<?= h($mpPlanAmount(99.90)) ?>';
+        const initialAmount = selectedPlan ? selectedPlan.dataset.valorMp : '99.90';
 
         cardForm = mp.cardForm({
             amount: initialAmount,

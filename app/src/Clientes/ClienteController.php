@@ -43,6 +43,8 @@ final class ClienteController
     public function cadastro(): void
     {
         $this->auth->requireAuth();
+        $documentos = $this->loadDocumentOptions();
+        $paisInicial = $this->detectAccessCountry($documentos);
 
         View::render('Clientes/cadastro', [
             'pageTitle'    => 'Cadastro de Cliente',
@@ -50,11 +52,102 @@ final class ClienteController
             'subtitle'     => 'Faturamento',
             'resultado'    => null,
             'erro'         => null,
-            'documentos'   => $this->loadDocumentOptions(),
+            'documentos'   => $documentos,
+            'planosVenda'  => $this->loadSalesPlans(),
+            'paisInicial'  => $paisInicial,
         ]);
     }
 
     // ── POST /clientes/cadastro ───────────────────────────────────
+    public function planos(): void
+    {
+        $this->auth->requireAuth();
+
+        View::render('Clientes/planos', [
+            'pageTitle' => 'Planos de Venda',
+            'contentTitle' => 'Planos de Venda',
+            'subtitle' => 'Faturamento',
+            'documentos' => $this->loadDocumentOptions(),
+            'planos' => $this->loadSalesPlans(false),
+            'resultado' => null,
+            'erro' => null,
+        ]);
+    }
+
+    public function planosSalvar(): void
+    {
+        $this->auth->requireAuth();
+
+        $token = (string) ($this->request->input('_csrf') ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+        if (!check_csrf($token)) {
+            $this->renderPlanos(null, 'Token de seguranca invalido. Recarregue a pagina.');
+            return;
+        }
+
+        $paisCodigo = strtoupper(trim((string) ($this->request->input('pais_codigo') ?? '')));
+        $planoCodigo = strtolower(trim((string) ($this->request->input('plano_codigo') ?? '')));
+        $nome = trim((string) ($this->request->input('nome') ?? ''));
+        $descricao = trim((string) ($this->request->input('descricao') ?? ''));
+        $valor = (float) str_replace(',', '.', (string) ($this->request->input('valor') ?? '0'));
+        $ativo = (string) ($this->request->input('ativo') ?? '0') === '1' ? 1 : 0;
+        $popular = (string) ($this->request->input('popular') ?? '0') === '1' ? 1 : 0;
+        $ordem = max(1, (int) ($this->request->input('ordem') ?? 10));
+
+        $country = $this->findCountryConfig($paisCodigo);
+        if ($country === null) {
+            $this->renderPlanos(null, 'Pais invalido para o plano.');
+            return;
+        }
+        if (!preg_match('/^[a-z0-9_-]{2,40}$/', $planoCodigo)) {
+            $this->renderPlanos(null, 'Codigo do plano invalido. Use letras, numeros, hifen ou underline.');
+            return;
+        }
+        if ($nome === '') {
+            $this->renderPlanos(null, 'Nome do plano e obrigatorio.');
+            return;
+        }
+        if ($valor <= 0) {
+            $this->renderPlanos(null, 'Valor do plano deve ser maior que zero.');
+            return;
+        }
+
+        try {
+            $stmt = $this->database->pdo()->prepare("
+                INSERT INTO planos_venda
+                    (pais_codigo, plano_codigo, nome, descricao, valor, currency_code, currency_symbol, ativo, popular, ordem)
+                VALUES
+                    (:pais_codigo, :plano_codigo, :nome, :descricao, :valor, :currency_code, :currency_symbol, :ativo, :popular, :ordem)
+                ON DUPLICATE KEY UPDATE
+                    nome = VALUES(nome),
+                    descricao = VALUES(descricao),
+                    valor = VALUES(valor),
+                    currency_code = VALUES(currency_code),
+                    currency_symbol = VALUES(currency_symbol),
+                    ativo = VALUES(ativo),
+                    popular = VALUES(popular),
+                    ordem = VALUES(ordem),
+                    updated_at = NOW()
+            ");
+            $stmt->execute([
+                ':pais_codigo' => $paisCodigo,
+                ':plano_codigo' => $planoCodigo,
+                ':nome' => $nome,
+                ':descricao' => $descricao,
+                ':valor' => $valor,
+                ':currency_code' => (string) $country['currency_code'],
+                ':currency_symbol' => (string) $country['currency_symbol'],
+                ':ativo' => $ativo,
+                ':popular' => $popular,
+                ':ordem' => $ordem,
+            ]);
+        } catch (\Throwable $e) {
+            $this->renderPlanos(null, 'Erro ao salvar plano: ' . $e->getMessage());
+            return;
+        }
+
+        $this->renderPlanos('Plano salvo com sucesso.', null);
+    }
+
     public function faturamento(): void
     {
         $this->auth->requireAuth();
@@ -98,15 +191,19 @@ final class ClienteController
                    COALESCE(pd.currency_code, 'BRL') AS currency_code,
                    COALESCE(pd.currency_symbol, 'R$') AS currency_symbol,
                    c.plano,
+                   COALESCE(pv.nome, c.plano) AS plano_nome,
                    COUNT(*) AS clientes,
-                   COALESCE(SUM(c.valor_plano * COALESCE(pd.amount_multiplier, 1)), 0) AS receita_mensal
+                   COALESCE(SUM(c.valor_plano), 0) AS receita_mensal
             FROM clientes c
             LEFT JOIN pais_documentos pd
               ON pd.pais_codigo = c.pais_codigo COLLATE utf8mb4_unicode_ci
              AND pd.documento_tipo = c.documento_tipo COLLATE utf8mb4_unicode_ci
+            LEFT JOIN planos_venda pv
+              ON pv.pais_codigo = c.pais_codigo COLLATE utf8mb4_unicode_ci
+             AND pv.plano_codigo = c.plano COLLATE utf8mb4_unicode_ci
             WHERE c.status = 'ativo'
-            GROUP BY c.pais_codigo, pais_nome, currency_code, currency_symbol, c.plano
-            ORDER BY pais_nome, FIELD(c.plano, 'basico', 'profissional', 'enterprise')
+            GROUP BY c.pais_codigo, pais_nome, currency_code, currency_symbol, c.plano, plano_nome
+            ORDER BY pais_nome, COALESCE(pv.ordem, 999), FIELD(c.plano, 'basico', 'profissional', 'enterprise')
         ")->fetchAll();
 
         foreach ($planRows as $row) {
@@ -127,7 +224,6 @@ final class ClienteController
             $paises[$paisCodigo]['receita_mensal'] += (float) $row['receita_mensal'];
         }
 
-        $planNames = ['basico' => 'Basico', 'profissional' => 'Profissional', 'enterprise' => 'Enterprise'];
         foreach ($planRows as $row) {
             $paisCodigo = (string) $row['pais_codigo'];
             $clientes = (int) $row['clientes'];
@@ -136,7 +232,7 @@ final class ClienteController
             $paisReceita = (float) ($paises[$paisCodigo]['receita_mensal'] ?? 0);
             $paises[$paisCodigo]['planos'][] = [
                 'plano' => (string) $row['plano'],
-                'nome' => $planNames[(string) $row['plano']] ?? ucfirst((string) $row['plano']),
+                'nome' => (string) $row['plano_nome'],
                 'clientes' => $clientes,
                 'receita_mensal' => $receita,
                 'percentual_clientes' => $paisClientes > 0 ? round(($clientes / $paisClientes) * 100, 1) : 0,
@@ -259,7 +355,6 @@ final class ClienteController
         $paisCodigo = (string) $documentoConfig['pais_codigo'];
         $documentoTipo = (string) $documentoConfig['documento_tipo'];
         $docType = (string) $documentoConfig['mp_identification_type'];
-        $mpAmountMultiplier = (float) $documentoConfig['amount_multiplier'];
         $currencyCode = (string) ($documentoConfig['currency_code'] ?? 'BRL');
         $currencySymbol = (string) ($documentoConfig['currency_symbol'] ?? 'R$');
         $phonePrefix = preg_replace('/\D/', '', (string) ($documentoConfig['phone_prefix'] ?? ''));
@@ -289,14 +384,9 @@ final class ClienteController
         if (strlen($telefoneNacional) < 7) { $this->renderCadastro(null, 'Telefone inválido.'); return; }
         if ($cardToken === '')    { $this->renderCadastro(null, 'Dados do cartão ausentes. Tente novamente.'); return; }
 
-        $planos = [
-            'basico'       => ['nome' => 'Básico',       'valor' => 49.90],
-            'profissional' => ['nome' => 'Profissional', 'valor' => 99.90],
-            'enterprise'   => ['nome' => 'Enterprise',   'valor' => 249.90],
-        ];
-        if (!isset($planos[$plano])) { $this->renderCadastro(null, 'Plano inválido.'); return; }
-        $planoInfo = $planos[$plano];
-        $mpTransactionAmount = round((float) $planoInfo['valor'] * $mpAmountMultiplier, 2);
+        $planoInfo = $this->findSalesPlan($paisCodigo, $plano);
+        if ($planoInfo === null) { $this->renderCadastro(null, 'Plano invalido para o pais selecionado.'); return; }
+        $mpTransactionAmount = round((float) $planoInfo['valor'], 2);
 
         // ── Mercado Pago ──────────────────────────────────────────
         $mpKey = $this->mercadoPagoAccessToken();
@@ -402,7 +492,7 @@ final class ClienteController
                 ':pais_codigo' => $paisCodigo,
                 ':documento_tipo' => $documentoTipo,
                 ':plano'    => $plano,
-                ':valor'    => $planoInfo['valor'],
+                ':valor'    => $mpTransactionAmount,
                 ':mp_cid'   => $mpCustomer['id'],
                 ':mp_card'  => $cardSaved ? $mpCard['id'] : (string) ($pagamento['card']['id'] ?? 'token_payment'),
                 ':pm_id'    => $pmId,
@@ -436,13 +526,29 @@ final class ClienteController
     // ── helpers ───────────────────────────────────────────────────
     private function renderCadastro(?array $resultado, ?string $erro): void
     {
+        $documentos = $this->loadDocumentOptions();
         View::render('Clientes/cadastro', [
             'pageTitle'    => 'Cadastro de Cliente',
             'contentTitle' => 'Novo Cliente',
             'subtitle'     => 'Faturamento',
             'resultado'    => $resultado,
             'erro'         => $erro,
-            'documentos'   => $this->loadDocumentOptions(),
+            'documentos'   => $documentos,
+            'planosVenda'  => $this->loadSalesPlans(),
+            'paisInicial'  => $this->detectAccessCountry($documentos),
+        ]);
+    }
+
+    private function renderPlanos(?string $resultado, ?string $erro): void
+    {
+        View::render('Clientes/planos', [
+            'pageTitle' => 'Planos de Venda',
+            'contentTitle' => 'Planos de Venda',
+            'subtitle' => 'Faturamento',
+            'documentos' => $this->loadDocumentOptions(),
+            'planos' => $this->loadSalesPlans(false),
+            'resultado' => $resultado,
+            'erro' => $erro,
         ]);
     }
 
@@ -493,6 +599,106 @@ final class ClienteController
                 ],
             ];
         }
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    private function loadSalesPlans(bool $activeOnly = true): array
+    {
+        try {
+            $sql = "
+                SELECT id, pais_codigo, plano_codigo, nome, descricao, valor,
+                       currency_code, currency_symbol, ativo, popular, ordem
+                FROM planos_venda
+            ";
+            if ($activeOnly) {
+                $sql .= " WHERE ativo = 1";
+            }
+            $sql .= " ORDER BY pais_codigo, ordem, valor";
+            $rows = $this->database->pdo()->query($sql)->fetchAll();
+            return is_array($rows) ? $rows : [];
+        } catch (\Throwable) {
+            return $this->fallbackSalesPlans($activeOnly);
+        }
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    private function fallbackSalesPlans(bool $activeOnly = true): array
+    {
+        $plans = [
+            ['pais_codigo' => 'BR', 'plano_codigo' => 'basico', 'nome' => 'Basico', 'descricao' => 'Recursos essenciais para comecar.', 'valor' => 49.90, 'currency_code' => 'BRL', 'currency_symbol' => 'R$', 'ativo' => 1, 'popular' => 0, 'ordem' => 10],
+            ['pais_codigo' => 'BR', 'plano_codigo' => 'profissional', 'nome' => 'Profissional', 'descricao' => 'Plano recomendado para operacao recorrente.', 'valor' => 99.90, 'currency_code' => 'BRL', 'currency_symbol' => 'R$', 'ativo' => 1, 'popular' => 1, 'ordem' => 20],
+            ['pais_codigo' => 'BR', 'plano_codigo' => 'enterprise', 'nome' => 'Enterprise', 'descricao' => 'Maior volume e suporte para equipes.', 'valor' => 249.90, 'currency_code' => 'BRL', 'currency_symbol' => 'R$', 'ativo' => 1, 'popular' => 0, 'ordem' => 30],
+            ['pais_codigo' => 'CO', 'plano_codigo' => 'basico', 'nome' => 'Basico', 'descricao' => 'Recursos esenciales para comenzar.', 'valor' => 4990.00, 'currency_code' => 'COP', 'currency_symbol' => '$', 'ativo' => 1, 'popular' => 0, 'ordem' => 10],
+            ['pais_codigo' => 'CO', 'plano_codigo' => 'profissional', 'nome' => 'Profesional', 'descricao' => 'Plan recomendado para operacion recurrente.', 'valor' => 9990.00, 'currency_code' => 'COP', 'currency_symbol' => '$', 'ativo' => 1, 'popular' => 1, 'ordem' => 20],
+            ['pais_codigo' => 'CO', 'plano_codigo' => 'enterprise', 'nome' => 'Enterprise', 'descricao' => 'Mayor volumen y soporte para equipos.', 'valor' => 24990.00, 'currency_code' => 'COP', 'currency_symbol' => '$', 'ativo' => 1, 'popular' => 0, 'ordem' => 30],
+        ];
+
+        return $activeOnly ? array_values(array_filter($plans, static fn (array $plan): bool => (int) $plan['ativo'] === 1)) : $plans;
+    }
+
+    private function findSalesPlan(string $paisCodigo, string $planoCodigo): ?array
+    {
+        $paisCodigo = strtoupper(trim($paisCodigo));
+        $planoCodigo = strtolower(trim($planoCodigo));
+        foreach ($this->loadSalesPlans() as $plan) {
+            if (
+                strtoupper((string) $plan['pais_codigo']) === $paisCodigo
+                && strtolower((string) $plan['plano_codigo']) === $planoCodigo
+            ) {
+                return $plan;
+            }
+        }
+
+        return null;
+    }
+
+    private function findCountryConfig(string $paisCodigo): ?array
+    {
+        $paisCodigo = strtoupper(trim($paisCodigo));
+        foreach ($this->loadDocumentOptions() as $documento) {
+            if (strtoupper((string) $documento['pais_codigo']) === $paisCodigo) {
+                return $documento;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param array<int,array<string,mixed>> $documentos */
+    private function detectAccessCountry(array $documentos): string
+    {
+        $requested = strtoupper(trim((string) ($this->request->input('pais') ?? '')));
+        if ($requested !== '' && $this->countryExists($documentos, $requested)) {
+            return $requested;
+        }
+
+        $headerCountry = strtoupper(trim((string) ($_SERVER['HTTP_CF_IPCOUNTRY'] ?? $_SERVER['HTTP_X_COUNTRY_CODE'] ?? '')));
+        if ($headerCountry !== '' && $this->countryExists($documentos, $headerCountry)) {
+            return $headerCountry;
+        }
+
+        $acceptLanguage = strtolower((string) ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''));
+        if (str_contains($acceptLanguage, 'es-co') && $this->countryExists($documentos, 'CO')) {
+            return 'CO';
+        }
+        if (str_contains($acceptLanguage, 'pt-br') && $this->countryExists($documentos, 'BR')) {
+            return 'BR';
+        }
+
+        $defaultConfig = $this->defaultDocumentConfig();
+        return strtoupper((string) ($defaultConfig['pais_codigo'] ?? ($documentos[0]['pais_codigo'] ?? 'BR')));
+    }
+
+    /** @param array<int,array<string,mixed>> $documentos */
+    private function countryExists(array $documentos, string $paisCodigo): bool
+    {
+        foreach ($documentos as $documento) {
+            if (strtoupper((string) $documento['pais_codigo']) === $paisCodigo) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function findDocumentConfig(string $paisCodigo, string $documentoTipo): ?array

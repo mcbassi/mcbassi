@@ -77,6 +77,7 @@ if ($i18nPayload === false) {
                 <nav class="menu-links" id="menu-billing" data-menu-links>
                     <a class="menu-link <?= nav_active('/clientes/cadastro') ?>" data-shell-nav="true" data-nav-prefix="/clientes/cadastro" href="<?= h(url('clientes/cadastro.php')) ?>"><?= h(t('menu.register_client')) ?></a>
                     <a class="menu-link <?= nav_active('/clientes/faturamento') ?>" data-shell-nav="true" data-nav-prefix="/clientes/faturamento" href="<?= h(url('clientes/faturamento.php')) ?>">Relatorio de Faturamento</a>
+                    <a class="menu-link <?= nav_active('/clientes/planos') ?>" data-shell-nav="true" data-nav-prefix="/clientes/planos" href="<?= h(url('clientes/planos.php')) ?>">Planos de Venda</a>
                     <a class="menu-link <?= nav_active('/clientes') ?>" data-shell-nav="true" data-nav-prefix="/clientes" href="<?= h(url('clientes/index.php')) ?>"><?= h(t('menu.list_clients')) ?></a>
                 </nav>
             </section>
