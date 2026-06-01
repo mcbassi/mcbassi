@@ -24,6 +24,7 @@ $money = static function (float $value, string $symbol, string $code): string {
     $decimals = strtoupper($code) === 'COP' ? 0 : 2;
     return $symbol . ' ' . number_format($value, $decimals, ',', '.') . ' ' . $code;
 };
+$planosJson = json_encode($planos, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 
 <style>
@@ -39,7 +40,10 @@ $money = static function (float $value, string $symbol, string $code): string {
 .plans-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .plans-checks { display:flex; gap:16px; margin:10px 0 14px; font-size:13px; color:#334155; }
 .plans-checks input { width:auto; }
+.plans-actions { display:flex; gap:10px; align-items:center; }
 .plans-btn { border:0; border-radius:8px; background:#4f46e5; color:#fff; padding:11px 14px; font-weight:800; cursor:pointer; }
+.plans-btn--ghost { background:#eef2ff; color:#3730a3; }
+.plans-link { border:0; background:transparent; color:#4f46e5; font-weight:800; cursor:pointer; padding:0; }
 .plans-table { width:100%; border-collapse:collapse; font-size:13px; }
 .plans-table th { text-align:left; padding:9px 10px; border-bottom:2px solid #e5e7eb; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.5px; }
 .plans-table td { padding:10px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
@@ -60,8 +64,8 @@ $money = static function (float $value, string $symbol, string $code): string {
 
 <div class="plans-grid">
     <section class="plans-panel">
-        <div class="plans-title">Cadastrar ou atualizar plano</div>
-        <form method="POST" action="<?= h(url('clientes/planos.php')) ?>">
+        <div class="plans-title" id="plans-form-title">Cadastrar plano</div>
+        <form method="POST" action="<?= h(url('clientes/planos.php')) ?>" id="plans-form">
             <?= csrf_input() ?>
             <div class="plans-row">
                 <div class="plans-field">
@@ -76,33 +80,36 @@ $money = static function (float $value, string $symbol, string $code): string {
                 </div>
                 <div class="plans-field">
                     <label>Codigo</label>
-                    <input type="text" name="plano_codigo" placeholder="profissional" required>
+                    <input type="text" name="plano_codigo" id="plan-code" placeholder="profissional" required>
                 </div>
             </div>
             <div class="plans-field">
                 <label>Nome comercial</label>
-                <input type="text" name="nome" placeholder="Profissional" required>
+                <input type="text" name="nome" id="plan-name" placeholder="Profissional" required>
             </div>
             <div class="plans-field">
                 <label>Descricao</label>
-                <textarea name="descricao" placeholder="Descricao que sera usada no site de vendas"></textarea>
+                <textarea name="descricao" id="plan-description" placeholder="Descricao que sera usada no site de vendas"></textarea>
             </div>
             <div class="plans-row">
                 <div class="plans-field">
                     <label>Valor mensal</label>
-                    <input type="number" name="valor" min="0.01" step="0.01" required>
+                    <input type="number" name="valor" id="plan-value" min="0.01" step="0.01" required>
                     <div class="plans-muted" id="plan-currency-hint"></div>
                 </div>
                 <div class="plans-field">
                     <label>Ordem</label>
-                    <input type="number" name="ordem" min="1" step="1" value="10">
+                    <input type="number" name="ordem" id="plan-order" min="1" step="1" value="10">
                 </div>
             </div>
             <div class="plans-checks">
-                <label><input type="checkbox" name="ativo" value="1" checked> Ativo</label>
-                <label><input type="checkbox" name="popular" value="1"> Popular</label>
+                <label><input type="checkbox" name="ativo" id="plan-active" value="1" checked> Ativo</label>
+                <label><input type="checkbox" name="popular" id="plan-popular" value="1"> Popular</label>
             </div>
-            <button class="plans-btn" type="submit">Salvar plano</button>
+            <div class="plans-actions">
+                <button class="plans-btn" type="submit" id="plans-submit">Salvar plano</button>
+                <button class="plans-btn plans-btn--ghost" type="button" id="plans-new">Novo plano</button>
+            </div>
         </form>
     </section>
 
@@ -116,6 +123,7 @@ $money = static function (float $value, string $symbol, string $code): string {
                     <th>Valor</th>
                     <th>Status</th>
                     <th>Descricao</th>
+                    <th>Acoes</th>
                 </tr>
             </thead>
             <tbody>
@@ -132,10 +140,17 @@ $money = static function (float $value, string $symbol, string $code): string {
                         <?php if ((int) $plan['popular'] === 1): ?><br><span class="plans-muted">Popular</span><?php endif; ?>
                     </td>
                     <td><?= h((string) $plan['descricao']) ?></td>
+                    <td>
+                        <button
+                            type="button"
+                            class="plans-link"
+                            data-edit-plan="<?= h((string) $plan['pais_codigo'] . '|' . (string) $plan['plano_codigo']) ?>"
+                        >Editar</button>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($planos)): ?>
-                <tr><td colspan="5">Nenhum plano cadastrado.</td></tr>
+                <tr><td colspan="6">Nenhum plano cadastrado.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
@@ -144,7 +159,19 @@ $money = static function (float $value, string $symbol, string $code): string {
 
 <script>
 (function () {
+    const plans = <?= $planosJson ?: '[]' ?>;
+    const form = document.getElementById('plans-form');
+    const title = document.getElementById('plans-form-title');
+    const submit = document.getElementById('plans-submit');
+    const newButton = document.getElementById('plans-new');
     const country = document.getElementById('plan-country');
+    const code = document.getElementById('plan-code');
+    const name = document.getElementById('plan-name');
+    const description = document.getElementById('plan-description');
+    const value = document.getElementById('plan-value');
+    const order = document.getElementById('plan-order');
+    const active = document.getElementById('plan-active');
+    const popular = document.getElementById('plan-popular');
     const hint = document.getElementById('plan-currency-hint');
     if (!country || !hint) return;
 
@@ -153,6 +180,44 @@ $money = static function (float $value, string $symbol, string $code): string {
         hint.textContent = option ? 'Moeda: ' + option.dataset.currencySymbol + ' ' + option.dataset.currencyCode : '';
     }
 
+    function resetForm() {
+        form.reset();
+        active.checked = true;
+        popular.checked = false;
+        order.value = '10';
+        title.textContent = 'Cadastrar plano';
+        submit.textContent = 'Salvar plano';
+        code.readOnly = false;
+        syncCurrency();
+    }
+
+    function fillPlan(plan) {
+        country.value = plan.pais_codigo || '';
+        code.value = plan.plano_codigo || '';
+        name.value = plan.nome || '';
+        description.value = plan.descricao || '';
+        value.value = Number(plan.valor || 0).toFixed(2);
+        order.value = String(plan.ordem || 10);
+        active.checked = Number(plan.ativo || 0) === 1;
+        popular.checked = Number(plan.popular || 0) === 1;
+        title.textContent = 'Editar plano';
+        submit.textContent = 'Salvar alteracoes';
+        code.readOnly = true;
+        syncCurrency();
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.querySelectorAll('[data-edit-plan]').forEach(button => {
+        button.addEventListener('click', function () {
+            const key = this.dataset.editPlan;
+            const plan = plans.find(item => item.pais_codigo + '|' + item.plano_codigo === key);
+            if (plan) {
+                fillPlan(plan);
+            }
+        });
+    });
+
+    newButton.addEventListener('click', resetForm);
     country.addEventListener('change', syncCurrency);
     syncCurrency();
 })();
