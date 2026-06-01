@@ -81,6 +81,14 @@ if ($selectedPlanCode === '') {
     }
 }
 $selectedPlanCode = $selectedPlanCode !== '' ? $selectedPlanCode : (string) ($selectedPlans[0]['plano_codigo'] ?? 'profissional');
+$selectedPlan = null;
+foreach ($selectedPlans as $plan) {
+    if ((string) $plan['plano_codigo'] === $selectedPlanCode) {
+        $selectedPlan = $plan;
+        break;
+    }
+}
+$initialPlanAmount = number_format((float) ($selectedPlan['valor'] ?? ($selectedPlans[0]['valor'] ?? 0)), 2, '.', '');
 ?>
 
 <?php if ($resultado): ?>
@@ -689,7 +697,7 @@ window.addEventListener('unhandledrejection', function (event) {
     try {
         const mp = new MercadoPago('<?= h($mpPublicKey) ?>', { locale: 'pt-BR' });
         const selectedPlan = document.querySelector('.cad-plan.selected');
-        const initialAmount = selectedPlan ? selectedPlan.dataset.valorMp : '99.90';
+        const initialAmount = selectedPlan ? selectedPlan.dataset.valorMp : '<?= h($initialPlanAmount) ?>';
 
         cardForm = mp.cardForm({
             amount: initialAmount,
