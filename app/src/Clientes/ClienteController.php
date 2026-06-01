@@ -65,6 +65,33 @@ final class ClienteController
         $monthStart = $today->modify('first day of this month')->setTime(0, 0, 0);
         $nextMonthStart = $monthStart->modify('+1 month');
 
+        $paises = [];
+        $countryRows = $pdo->query("
+            SELECT pais_codigo,
+                   MAX(pais_nome) AS pais_nome,
+                   MAX(currency_code) AS currency_code,
+                   MAX(currency_symbol) AS currency_symbol
+            FROM pais_documentos
+            WHERE ativo = 1
+            GROUP BY pais_codigo
+            ORDER BY pais_nome
+        ")->fetchAll();
+        foreach ($countryRows as $row) {
+            $paisCodigo = (string) $row['pais_codigo'];
+            $paises[$paisCodigo] = [
+                'pais_codigo' => $paisCodigo,
+                'pais_nome' => (string) $row['pais_nome'],
+                'currency_code' => (string) $row['currency_code'],
+                'currency_symbol' => (string) $row['currency_symbol'],
+                'clientes' => 0,
+                'receita_mensal' => 0.0,
+                'faturamento_real_mes' => 0.0,
+                'planejado_total' => 0.0,
+                'planos' => [],
+                'planejados' => [],
+            ];
+        }
+
         $planRows = $pdo->query("
             SELECT c.pais_codigo,
                    COALESCE(pd.pais_nome, c.pais_codigo) AS pais_nome,
@@ -82,7 +109,6 @@ final class ClienteController
             ORDER BY pais_nome, FIELD(c.plano, 'basico', 'profissional', 'enterprise')
         ")->fetchAll();
 
-        $paises = [];
         foreach ($planRows as $row) {
             $paisCodigo = (string) $row['pais_codigo'];
             $paises[$paisCodigo] ??= [

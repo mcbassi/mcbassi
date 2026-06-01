@@ -19,6 +19,11 @@ $maxClientes = max(array_map(static fn ($row) => (int) $row['clientes'], $ganhoC
 
 <style>
 .fat-country { margin-bottom:22px; }
+.fat-filter { border:1px solid #e5e7eb; border-radius:8px; padding:14px; background:#fff; margin-bottom:18px; display:flex; justify-content:space-between; align-items:end; gap:14px; }
+.fat-filter label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:#64748b; font-weight:700; margin-bottom:6px; }
+.fat-filter select { min-width:240px; height:38px; border:1px solid #d1d5db; border-radius:6px; padding:0 10px; background:#fff; color:#111827; font-size:14px; }
+.fat-filter__currency { color:#111827; font-size:22px; font-weight:850; text-align:right; }
+.fat-filter__hint { color:#64748b; font-size:12px; margin-top:2px; }
 .fat-country__head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px; }
 .fat-country__title { margin:0; font-size:18px; font-weight:850; color:#111827; }
 .fat-country__meta { color:#64748b; font-size:12px; margin-top:3px; }
@@ -52,6 +57,9 @@ $maxClientes = max(array_map(static fn ($row) => (int) $row['clientes'], $ganhoC
 }
 @media (max-width: 640px) {
     .fat-grid { grid-template-columns:1fr; }
+    .fat-filter { display:block; }
+    .fat-filter select { width:100%; min-width:0; }
+    .fat-filter__currency { text-align:left; margin-top:10px; }
     .fat-country__head { display:block; }
 }
 </style>
@@ -59,6 +67,30 @@ $maxClientes = max(array_map(static fn ($row) => (int) $row['clientes'], $ganhoC
 <?php if (empty($paises)): ?>
 <section class="fat-panel">
     <p class="fat-empty">Ainda nao ha clientes ativos para compor o faturamento.</p>
+</section>
+<?php endif; ?>
+
+<?php if (!empty($paises)): ?>
+<section class="fat-filter">
+    <div>
+        <label for="fat-country-select">Pais</label>
+        <select id="fat-country-select">
+            <?php foreach ($paises as $index => $pais): ?>
+                <option
+                    value="<?= h((string) $pais['pais_codigo']) ?>"
+                    data-currency-code="<?= h((string) $pais['currency_code']) ?>"
+                    data-currency-symbol="<?= h((string) $pais['currency_symbol']) ?>"
+                    <?= $index === 0 ? 'selected' : '' ?>
+                >
+                    <?= h((string) $pais['pais_nome']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <div>
+        <div class="fat-filter__currency" id="fat-selected-currency"></div>
+        <div class="fat-filter__hint">Os indicadores e graficos usam a moeda fixa do pais selecionado.</div>
+    </div>
 </section>
 <?php endif; ?>
 
@@ -70,7 +102,7 @@ $maxClientes = max(array_map(static fn ($row) => (int) $row['clientes'], $ganhoC
     $planejados = is_array($pais['planejados'] ?? null) ? $pais['planejados'] : [];
     $maxPlanejado = max(array_map(static fn ($row) => (float) $row['valor'], $planejados ?: [['valor' => 0]]));
     ?>
-    <section class="fat-country">
+    <section class="fat-country" data-country="<?= h((string) $pais['pais_codigo']) ?>">
         <div class="fat-country__head">
             <div>
                 <h2 class="fat-country__title"><?= h((string) $pais['pais_nome']) ?></h2>
@@ -187,3 +219,30 @@ $maxClientes = max(array_map(static fn ($row) => (int) $row['clientes'], $ganhoC
         <?php endforeach; ?>
     </div>
 </section>
+
+<script>
+(function () {
+    const select = document.getElementById('fat-country-select');
+    const currency = document.getElementById('fat-selected-currency');
+    const sections = Array.from(document.querySelectorAll('.fat-country[data-country]'));
+    if (!select || sections.length === 0) return;
+
+    function applyCountry() {
+        const option = select.options[select.selectedIndex];
+        const selected = select.value;
+        const code = option ? option.dataset.currencyCode : '';
+        const symbol = option ? option.dataset.currencySymbol : '';
+
+        sections.forEach(function (section) {
+            section.style.display = section.dataset.country === selected ? '' : 'none';
+        });
+
+        if (currency) {
+            currency.textContent = symbol && code ? symbol + ' ' + code : code;
+        }
+    }
+
+    select.addEventListener('change', applyCountry);
+    applyCountry();
+})();
+</script>
